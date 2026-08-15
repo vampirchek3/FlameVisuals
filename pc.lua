@@ -13,6 +13,7 @@ local Camera = workspace.CurrentCamera
 
 local CORRECT_KEY = "flamevisualsbest"
 local KEY_FILE = "FlameVisuals_Key.json"
+local DISCORD_LINK = "https://discord.gg/PHd78uaBWC"
 
 --------------------------------------------------------------------------------
 -- SCREEN GUI
@@ -33,7 +34,7 @@ else
 end
 
 --------------------------------------------------------------------------------
--- СОХРАНЕНИЕ КЛЮЧА (сброс каждый день после 00:00)
+-- СОХРАНЕНИЕ КЛЮЧА (сброс после 00:00)
 --------------------------------------------------------------------------------
 local function getTodayDate()
 	local t = os.date("*t")
@@ -60,6 +61,17 @@ local function saveKeyToday()
 		date = getTodayDate()
 	}
 	pcall(writefile, KEY_FILE, HttpService:JSONEncode(payload))
+end
+
+local function openDiscord()
+	if setclipboard then
+		pcall(setclipboard, DISCORD_LINK)
+	end
+	if syn and syn.open_url then
+		pcall(syn.open_url, DISCORD_LINK)
+	elseif open_url then
+		pcall(open_url, DISCORD_LINK)
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -165,11 +177,8 @@ local function createKeyUI(onSuccess)
 
 	getKeyBtn.MouseButton1Click:Connect(function()
 		statusLabel.TextColor3 = Color3.fromRGB(120, 220, 120)
-		statusLabel.Text = "Ключ: flamevisualsbest"
-		if setclipboard then
-			pcall(setclipboard, "flamevisualsbest")
-			statusLabel.Text = "Ключ скопирован!"
-		end
+		statusLabel.Text = "Ссылка скопирована + Discord открыт"
+		openDiscord()
 	end)
 
 	local function tryActivate()
