@@ -1,4 +1,4 @@
--- LocalScript: FlameVisuals Client (Key System + Daily Reset)
+-- LocalScript: FlameVisuals Client (Mobile + Key System)
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -14,6 +14,7 @@ local Camera = workspace.CurrentCamera
 local isMobile = UserInputService.TouchEnabled
 local CORRECT_KEY = "flamevisualsbest"
 local KEY_FILE = "FlameVisuals_Key.json"
+local DISCORD_LINK = "https://discord.gg/PHd78uaBWC"
 
 --------------------------------------------------------------------------------
 -- SCREEN GUI
@@ -34,7 +35,7 @@ else
 end
 
 --------------------------------------------------------------------------------
--- ФУНКЦИИ ДЛЯ СОХРАНЕНИЯ КЛЮЧА (ежедневный сброс)
+-- СОХРАНЕНИЕ КЛЮЧА (сброс после 00:00)
 --------------------------------------------------------------------------------
 local function getTodayDate()
 	local t = os.date("*t")
@@ -42,49 +43,46 @@ local function getTodayDate()
 end
 
 local function isKeyValidToday()
-	if not (isfile and readfile) then
-		return false
-	end
-
+	if not (isfile and readfile) then return false end
 	local success, content = pcall(readfile, KEY_FILE)
-	if not success or not content then
-		return false
-	end
+	if not success or not content then return false end
 
 	local ok, data = pcall(function()
 		return HttpService:JSONDecode(content)
 	end)
+	if not ok or type(data) ~= "table" then return false end
 
-	if not ok or type(data) ~= "table" then
-		return false
-	end
-
-	if data.key == CORRECT_KEY and data.date == getTodayDate() then
-		return true
-	end
-
-	return false
+	return data.key == CORRECT_KEY and data.date == getTodayDate()
 end
 
 local function saveKeyToday()
-	if not (writefile) then return end
-
+	if not writefile then return end
 	local payload = {
 		key = CORRECT_KEY,
 		date = getTodayDate()
 	}
-
 	pcall(writefile, KEY_FILE, HttpService:JSONEncode(payload))
 end
 
+local function openDiscord()
+	if setclipboard then
+		pcall(setclipboard, DISCORD_LINK)
+	end
+	if syn and syn.open_url then
+		pcall(syn.open_url, DISCORD_LINK)
+	elseif open_url then
+		pcall(open_url, DISCORD_LINK)
+	end
+end
+
 --------------------------------------------------------------------------------
--- СИСТЕМА КЛЮЧА
+-- ОКНО ВВОДА КЛЮЧА
 --------------------------------------------------------------------------------
 local function createKeyUI(onSuccess)
 	local keyFrame = Instance.new("Frame")
 	keyFrame.Name = "KeySystem"
-	keyFrame.Size = UDim2.new(0, 320, 0, 220)
-	keyFrame.Position = UDim2.new(0.5, -160, 0.5, -110)
+	keyFrame.Size = UDim2.new(0, 300, 0, 210)
+	keyFrame.Position = UDim2.new(0.5, -150, 0.5, -105)
 	keyFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
 	keyFrame.BorderSizePixel = 0
 	keyFrame.Parent = screenGui
@@ -99,18 +97,18 @@ local function createKeyUI(onSuccess)
 	keyStroke.Parent = keyFrame
 
 	local keyTitle = Instance.new("TextLabel")
-	keyTitle.Size = UDim2.new(1, 0, 0, 40)
-	keyTitle.Position = UDim2.new(0, 0, 0, 12)
+	keyTitle.Size = UDim2.new(1, 0, 0, 38)
+	keyTitle.Position = UDim2.new(0, 0, 0, 10)
 	keyTitle.BackgroundTransparency = 1
 	keyTitle.Text = "🔥 FlameVisuals"
 	keyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-	keyTitle.TextSize = 20
+	keyTitle.TextSize = 18
 	keyTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 	keyTitle.Parent = keyFrame
 
 	local keySubtitle = Instance.new("TextLabel")
-	keySubtitle.Size = UDim2.new(1, -40, 0, 20)
-	keySubtitle.Position = UDim2.new(0, 20, 0, 50)
+	keySubtitle.Size = UDim2.new(1, -30, 0, 18)
+	keySubtitle.Position = UDim2.new(0, 15, 0, 46)
 	keySubtitle.BackgroundTransparency = 1
 	keySubtitle.Text = "Введите ключ для активации"
 	keySubtitle.TextColor3 = Color3.fromRGB(160, 160, 175)
@@ -119,8 +117,8 @@ local function createKeyUI(onSuccess)
 	keySubtitle.Parent = keyFrame
 
 	local keyInput = Instance.new("TextBox")
-	keyInput.Size = UDim2.new(1, -40, 0, 36)
-	keyInput.Position = UDim2.new(0, 20, 0, 80)
+	keyInput.Size = UDim2.new(1, -30, 0, 34)
+	keyInput.Position = UDim2.new(0, 15, 0, 72)
 	keyInput.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
 	keyInput.BorderSizePixel = 0
 	keyInput.PlaceholderText = "Введите ключ..."
@@ -137,16 +135,16 @@ local function createKeyUI(onSuccess)
 	keyInputCorner.Parent = keyInput
 
 	local keyInputPadding = Instance.new("UIPadding")
-	keyInputPadding.PaddingLeft = UDim.new(0, 12)
+	keyInputPadding.PaddingLeft = UDim.new(0, 10)
 	keyInputPadding.Parent = keyInput
 
 	local activateBtn = Instance.new("TextButton")
-	activateBtn.Size = UDim2.new(0.5, -25, 0, 36)
-	activateBtn.Position = UDim2.new(0, 20, 0, 132)
+	activateBtn.Size = UDim2.new(0.5, -20, 0, 34)
+	activateBtn.Position = UDim2.new(0, 15, 0, 120)
 	activateBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
 	activateBtn.Text = "Activation"
 	activateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	activateBtn.TextSize = 14
+	activateBtn.TextSize = 13
 	activateBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 	activateBtn.Parent = keyFrame
 
@@ -155,12 +153,12 @@ local function createKeyUI(onSuccess)
 	activateCorner.Parent = activateBtn
 
 	local getKeyBtn = Instance.new("TextButton")
-	getKeyBtn.Size = UDim2.new(0.5, -25, 0, 36)
-	getKeyBtn.Position = UDim2.new(0.5, 5, 0, 132)
+	getKeyBtn.Size = UDim2.new(0.5, -20, 0, 34)
+	getKeyBtn.Position = UDim2.new(0.5, 5, 0, 120)
 	getKeyBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 	getKeyBtn.Text = "Get Key"
 	getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	getKeyBtn.TextSize = 14
+	getKeyBtn.TextSize = 13
 	getKeyBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 	getKeyBtn.Parent = keyFrame
 
@@ -169,8 +167,8 @@ local function createKeyUI(onSuccess)
 	getKeyCorner.Parent = getKeyBtn
 
 	local statusLabel = Instance.new("TextLabel")
-	statusLabel.Size = UDim2.new(1, -40, 0, 20)
-	statusLabel.Position = UDim2.new(0, 20, 0, 180)
+	statusLabel.Size = UDim2.new(1, -30, 0, 18)
+	statusLabel.Position = UDim2.new(0, 15, 0, 168)
 	statusLabel.BackgroundTransparency = 1
 	statusLabel.Text = ""
 	statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
@@ -178,18 +176,12 @@ local function createKeyUI(onSuccess)
 	statusLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold, Enum.FontStyle.Normal)
 	statusLabel.Parent = keyFrame
 
-	-- Get Key
 	getKeyBtn.MouseButton1Click:Connect(function()
 		statusLabel.TextColor3 = Color3.fromRGB(120, 220, 120)
-		statusLabel.Text = "Ключ: flamevisualsbest"
-
-		if setclipboard then
-			pcall(setclipboard, "flamevisualsbest")
-			statusLabel.Text = "Ключ скопирован!"
-		end
+		statusLabel.Text = "Ссылка скопирована + Discord открыт"
+		openDiscord()
 	end)
 
-	-- Activation
 	local function tryActivate()
 		local entered = keyInput.Text:gsub("%s+", "")
 		if entered == CORRECT_KEY then
@@ -207,16 +199,13 @@ local function createKeyUI(onSuccess)
 	end
 
 	activateBtn.MouseButton1Click:Connect(tryActivate)
-
-	keyInput.FocusLost:Connect(function(enterPressed)
-		if enterPressed then
-			tryActivate()
-		end
+	keyInput.FocusLost:Connect(function(enter)
+		if enter then tryActivate() end
 	end)
 end
 
 --------------------------------------------------------------------------------
--- ОСНОВНОЙ СКРИПТ (запускается после ключа)
+-- ОСНОВНОЙ СКРИПТ (МОБИЛЬНЫЙ)
 --------------------------------------------------------------------------------
 local function startMainScript()
 	local function makeDraggable(frame, onClick)
@@ -264,6 +253,9 @@ local function startMainScript()
 		end)
 	end
 
+	--------------------------------------------------------------------------------
+	-- НАСТРОЙКИ
+	--------------------------------------------------------------------------------
 	local ESPConfig = {
 		Enabled = false,
 		Boxes = true,
@@ -274,7 +266,9 @@ local function startMainScript()
 	local TargetHUDConfig = { Enabled = false }
 	local AutoLoadConfig = { Enabled = false }
 
-	-- TARGET HUD
+	--------------------------------------------------------------------------------
+	-- TARGET HUD (уменьшенный)
+	--------------------------------------------------------------------------------
 	local targetHudFrame = Instance.new("Frame")
 	targetHudFrame.Name = "TargetHUD"
 	targetHudFrame.Size = UDim2.new(0, 200, 0, 58)
@@ -353,7 +347,9 @@ local function startMainScript()
 	barFillCorner.CornerRadius = UDim.new(1, 0)
 	barFillCorner.Parent = healthBarFill
 
+	--------------------------------------------------------------------------------
 	-- WATERMARK
+	--------------------------------------------------------------------------------
 	local watermarkFrame = Instance.new("Frame")
 	watermarkFrame.Name = "WatermarkFrame"
 	watermarkFrame.Position = UDim2.new(0, 15, 0, 15)
@@ -432,7 +428,9 @@ local function startMainScript()
 		end
 	end)
 
-	-- ГЛАВНОЕ МЕНЮ
+	--------------------------------------------------------------------------------
+	-- ГЛАВНОЕ МЕНЮ (пропорционально уменьшенное)
+	--------------------------------------------------------------------------------
 	local menuWidth = isMobile and 480 or 750
 	local menuHeight = isMobile and 380 or 480
 	local sidebarWidth = isMobile and 130 or 180
@@ -584,7 +582,9 @@ local function startMainScript()
 
 	switchTab("Visuals")
 
-	-- МОДАЛЬНОЕ ОКНО
+	--------------------------------------------------------------------------------
+	-- МОДАЛЬНОЕ ОКНО ESP
+	--------------------------------------------------------------------------------
 	local settingsModal = Instance.new("Frame")
 	settingsModal.Name = "SettingsModal"
 	settingsModal.Size = UDim2.new(0, 200, 0, 0)
@@ -698,7 +698,9 @@ local function startMainScript()
 		end)
 	end
 
-	-- КАРТОЧКИ
+	--------------------------------------------------------------------------------
+	-- КАРТОЧКИ МОДУЛЕЙ
+	--------------------------------------------------------------------------------
 	local cardReferences = {}
 
 	local function createModuleCard(parentTab, title, description, defaultValue, onToggle, onRightClick)
@@ -789,6 +791,7 @@ local function startMainScript()
 		}
 	end
 
+	-- VISUALS
 	cardReferences.ESP = createModuleCard(tabs["Visuals"], "ESP", "ПКМ - настройки", ESPConfig.Enabled, function(v)
 		ESPConfig.Enabled = v
 	end, function()
@@ -803,6 +806,7 @@ local function startMainScript()
 		createRefToggle("Здоровье", ESPConfig.Health, function(v) ESPConfig.Health = v end)
 	end)
 
+	-- HUD
 	cardReferences.Watermark = createModuleCard(tabs["HUD"], "Watermark", "Верхний HUD", true, function(v)
 		watermarkFrame.Visible = v
 	end, nil)
@@ -812,7 +816,9 @@ local function startMainScript()
 		if not v then targetHudFrame.Visible = false end
 	end, nil)
 
-	-- КОНФИГИ + UTILITIES (сокращённо для места, логика та же)
+	--------------------------------------------------------------------------------
+	-- КОНФИГИ + UTILITIES
+	--------------------------------------------------------------------------------
 	local HAS_FS = (writefile ~= nil and readfile ~= nil and listfiles ~= nil and delfile ~= nil)
 	local CONFIG_FOLDER = "FlameVisuals_Configs"
 	local AUTOLOAD_FILE = CONFIG_FOLDER .. "/_autoload_state.json"
@@ -935,7 +941,9 @@ local function startMainScript()
 		end
 	end, nil)
 
-	-- CONFIGS TAB (упрощённый)
+	--------------------------------------------------------------------------------
+	-- CONFIGS TAB
+	--------------------------------------------------------------------------------
 	local configsTab = tabs["Configs"]
 	local defaultGrid = configsTab:FindFirstChildOfClass("UIGridLayout")
 	if defaultGrid then defaultGrid:Destroy() end
@@ -1000,7 +1008,9 @@ local function startMainScript()
 		end
 	end)
 
+	--------------------------------------------------------------------------------
 	-- TARGET HUD LOGIC
+	--------------------------------------------------------------------------------
 	local currentTargetPlayer = nil
 
 	local function getMouseTargetPlayer()
@@ -1060,7 +1070,9 @@ local function startMainScript()
 		end
 	end)
 
+	--------------------------------------------------------------------------------
 	-- ESP
+	--------------------------------------------------------------------------------
 	local espContainer = Instance.new("Folder")
 	espContainer.Name = "ESPContainer"
 	espContainer.Parent = screenGui
@@ -1178,7 +1190,9 @@ local function startMainScript()
 		end
 	end)
 
-	-- МОБИЛЬНАЯ ИКОНКА
+	--------------------------------------------------------------------------------
+	-- МОБИЛЬНАЯ ИКОНКА 🔥
+	--------------------------------------------------------------------------------
 	local mobileToggle = Instance.new("TextButton")
 	mobileToggle.Name = "MobileToggle"
 	mobileToggle.Size = UDim2.new(0, 52, 0, 52)
@@ -1222,9 +1236,7 @@ end
 -- ЗАПУСК
 --------------------------------------------------------------------------------
 if isKeyValidToday() then
-	-- Ключ уже был введён сегодня → сразу запускаем
 	startMainScript()
 else
-	-- Нужно ввести ключ
 	createKeyUI(startMainScript)
 end
