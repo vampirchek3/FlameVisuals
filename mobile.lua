@@ -1,4 +1,4 @@
--- LocalScript: FlameVisuals Client (Mobile Optimized)
+-- LocalScript: FlameVisuals Client (Mobile Optimized - Proportional)
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -259,11 +259,11 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --------------------------------------------------------------------------------
--- 5. ГЛАВНОЕ МЕНЮ (компактное)
+-- 5. ГЛАВНОЕ МЕНЮ (уменьшено пропорционально)
 --------------------------------------------------------------------------------
-local menuWidth = isMobile and 340 or 750
-local menuHeight = isMobile and 520 or 480
-local sidebarWidth = isMobile and 110 or 180
+local menuWidth = isMobile and 480 or 750
+local menuHeight = isMobile and 380 or 480
+local sidebarWidth = isMobile and 130 or 180
 
 local mainGui = Instance.new("Frame")
 mainGui.Name = "MainMenu"
@@ -291,7 +291,7 @@ sidebarCorner.CornerRadius = UDim.new(0, 12)
 sidebarCorner.Parent = sidebar
 
 local logoContainer = Instance.new("Frame")
-logoContainer.Size = UDim2.new(1, -12, 0, 44)
+logoContainer.Size = UDim2.new(1, -12, 0, 42)
 logoContainer.Position = UDim2.new(0, 8, 0, 8)
 logoContainer.BackgroundTransparency = 1
 logoContainer.Parent = sidebar
@@ -321,7 +321,7 @@ contentArea.BackgroundTransparency = 1
 contentArea.Parent = mainGui
 
 local headerText = Instance.new("TextLabel")
-headerText.Size = UDim2.new(1, 0, 0, 30)
+headerText.Size = UDim2.new(1, 0, 0, 28)
 headerText.BackgroundTransparency = 1
 headerText.Text = "Visuals"
 headerText.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -335,8 +335,8 @@ local tabButtons = {}
 local categories = {"Visuals", "HUD", "Utilities", "Configs"}
 
 local navContainer = Instance.new("Frame")
-navContainer.Size = UDim2.new(1, -8, 0, 210)
-navContainer.Position = UDim2.new(0, 4, 0, 52)
+navContainer.Size = UDim2.new(1, -8, 0, 200)
+navContainer.Position = UDim2.new(0, 4, 0, 50)
 navContainer.BackgroundTransparency = 1
 navContainer.Parent = sidebar
 
@@ -347,8 +347,8 @@ navList.Parent = navContainer
 local function createTabContent(name)
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Name = name .. "Tab"
-	scroll.Size = UDim2.new(1, -2, 1, -36)
-	scroll.Position = UDim2.new(0, 0, 0, 34)
+	scroll.Size = UDim2.new(1, -2, 1, -34)
+	scroll.Position = UDim2.new(0, 0, 0, 32)
 	scroll.BackgroundTransparency = 1
 	scroll.BorderSizePixel = 0
 	scroll.ScrollBarThickness = 3
@@ -360,8 +360,8 @@ local function createTabContent(name)
 
 	local gridLayout = Instance.new("UIGridLayout")
 	if isMobile then
-		gridLayout.CellSize = UDim2.new(0, 200, 0, 58)
-		gridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
+		gridLayout.CellSize = UDim2.new(0, 155, 0, 58)
+		gridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
 	else
 		gridLayout.CellSize = UDim2.new(0, 260, 0, 70)
 		gridLayout.CellPadding = UDim2.new(0, 15, 0, 15)
