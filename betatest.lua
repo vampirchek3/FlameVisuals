@@ -15,6 +15,27 @@ local CORRECT_KEY = "flamevisualsbest"
 local KEY_FILE = "FlameVisuals_Key.json"
 local DISCORD_LINK = "https://discord.gg/PHd78uaBWC"
 
+-- РОЛИ: впиши ники в нужный список, чтобы игрок получил роль
+local DEVELOPER_NAMES = {"timoxa08012000", "Gemeeil_Goglr"}
+local TESTER_NAMES = {"Kiri95551"}
+
+local ROLE_COLORS = {
+    Developer = {Color3.fromRGB(255, 120, 120), Color3.fromRGB(200, 30, 30)},
+    Tester = {Color3.fromRGB(120, 180, 255), Color3.fromRGB(40, 80, 220)},
+    User = {Color3.fromRGB(235, 235, 240), Color3.fromRGB(165, 165, 170)}
+}
+
+local function getPlayerRole(playerName)
+    local lowerName = string.lower(playerName or "")
+    for _, name in ipairs(DEVELOPER_NAMES) do
+        if string.lower(name) == lowerName then return "Developer" end
+    end
+    for _, name in ipairs(TESTER_NAMES) do
+        if string.lower(name) == lowerName then return "Tester" end
+    end
+    return "User"
+end
+
 --------------------------------------------------------------------------------
 -- SCREEN GUI
 --------------------------------------------------------------------------------
@@ -236,6 +257,26 @@ local function startMainScript()
     local activeParticles = {}
     local espCache = {}
 
+    local CONFIG_FILE = "FlameVisuals_Configs.json"
+
+    local function persistConfigs()
+        if not writefile then return end
+        pcall(writefile, CONFIG_FILE, HttpService:JSONEncode(configStorage))
+    end
+
+    local function loadConfigsFromFile()
+        if not (isfile and readfile) then return end
+        if not isfile(CONFIG_FILE) then return end
+        local ok, content = pcall(readfile, CONFIG_FILE)
+        if not ok or not content then return end
+        local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
+        if ok2 and type(data) == "table" then
+            configStorage = data
+        end
+    end
+
+    loadConfigsFromFile()
+
     local function getConfigList()
         local names = {}
         for name, _ in pairs(configStorage) do
@@ -267,7 +308,8 @@ local function startMainScript()
             ParticleType = ParticleConfig.Type
         }
         configStorage[name] = data
-        print("[Config] '" .. name .. "' сохранён в памяти")
+        persistConfigs()
+        print("[Config] '" .. name .. "' сохранён")
         return true
     end
 
@@ -321,6 +363,7 @@ local function startMainScript()
     local function deleteESPConfig(name)
         if configStorage[name] then
             configStorage[name] = nil
+            persistConfigs()
             print("[Config] '" .. name .. "' удалён")
             return true
         else
@@ -432,6 +475,21 @@ local function startMainScript()
     wmBrand.TextSize = 14
     wmBrand.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 
+    local roleName = getPlayerRole(LocalPlayer.Name)
+    local roleColors = ROLE_COLORS[roleName]
+
+    local wmRole = Instance.new("TextLabel", watermarkFrame)
+    wmRole.AutomaticSize = Enum.AutomaticSize.X
+    wmRole.Size = UDim2.new(0, 0, 1, 0)
+    wmRole.BackgroundTransparency = 1
+    wmRole.Text = roleName
+    wmRole.TextColor3 = Color3.fromRGB(255, 255, 255)
+    wmRole.TextSize = 14
+    wmRole.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    local wmRoleGrad = Instance.new("UIGradient", wmRole)
+    wmRoleGrad.Rotation = 90
+    wmRoleGrad.Color = ColorSequence.new(roleColors[1], roleColors[2])
+
     local wmStats = Instance.new("TextLabel", watermarkFrame)
     wmStats.AutomaticSize = Enum.AutomaticSize.X
     wmStats.Size = UDim2.new(0, 0, 1, 0)
@@ -450,7 +508,7 @@ local function startMainScript()
             lastUpdate = now
             local ping = 0
             pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-            wmStats.Text = string.format("/  %s  /  %d ms  /  %d FPS", LocalPlayer.Name, ping, fps)
+            wmStats.Text = string.format("●  %s  ●  %d ms  ●  %d FPS", LocalPlayer.Name, ping, fps)
         end
     end)
 
@@ -472,6 +530,58 @@ local function startMainScript()
     sidebar.BackgroundColor3 = Color3.fromRGB(11, 11, 14)
     sidebar.BorderSizePixel = 0
     Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 12)
+
+    local userPanel = Instance.new("Frame", sidebar)
+    userPanel.Size = UDim2.new(1, -20, 0, 54)
+    userPanel.Position = UDim2.new(0, 10, 1, -64)
+    userPanel.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+    userPanel.BorderSizePixel = 0
+    Instance.new("UICorner", userPanel).CornerRadius = UDim.new(0, 10)
+    local userStroke = Instance.new("UIStroke", userPanel)
+    userStroke.Color = InterfaceConfig.AccentColor
+    userStroke.Thickness = 1
+    userStroke.Transparency = 0.5
+
+    local avatarFrame = Instance.new("Frame", userPanel)
+    avatarFrame.Size = UDim2.new(0, 40, 0, 40)
+    avatarFrame.Position = UDim2.new(0, 8, 0, 7)
+    avatarFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+    avatarFrame.BorderSizePixel = 0
+    avatarFrame.ClipsDescendants = true
+    Instance.new("UICorner", avatarFrame).CornerRadius = UDim.new(1, 0)
+
+    local avatarImg = Instance.new("ImageLabel", avatarFrame)
+    avatarImg.Size = UDim2.new(1, 0, 1, 0)
+    avatarImg.BackgroundTransparency = 1
+    avatarImg.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+    task.spawn(function()
+        local ok, content = pcall(Players.GetUserThumbnailAsync, Players, LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+        if ok then avatarImg.Image = content end
+    end)
+
+    local userNameLabel = Instance.new("TextLabel", userPanel)
+    userNameLabel.Size = UDim2.new(1, -64, 0, 20)
+    userNameLabel.Position = UDim2.new(0, 56, 0, 8)
+    userNameLabel.BackgroundTransparency = 1
+    userNameLabel.Text = LocalPlayer.Name
+    userNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    userNameLabel.TextSize = 14
+    userNameLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    userNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    userNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
+    local roleLabel = Instance.new("TextLabel", userPanel)
+    roleLabel.Size = UDim2.new(1, -64, 0, 18)
+    roleLabel.Position = UDim2.new(0, 56, 0, 29)
+    roleLabel.BackgroundTransparency = 1
+    roleLabel.Text = roleName
+    roleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    roleLabel.TextSize = 13
+    roleLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    roleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    local roleLabelGrad = Instance.new("UIGradient", roleLabel)
+    roleLabelGrad.Rotation = 90
+    roleLabelGrad.Color = ColorSequence.new(roleColors[1], roleColors[2])
 
     local logoContainer = Instance.new("Frame", sidebar)
     logoContainer.Size = UDim2.new(1, -20, 0, 50)
