@@ -65,6 +65,7 @@ local T = {
         hdr_custom_color = "Свой цвет",
         lbl_particle_type = "Тип частиц",
         lbl_size = "Размер",
+        lbl_nimb_height = "Высота",
         lbl_box_style = "Стиль бокса",
         opt_all = "🎲 Все сразу",
         size_small = "Маленький",
@@ -123,6 +124,7 @@ local T = {
         hdr_custom_color = "Свій колір",
         lbl_particle_type = "Тип частинок",
         lbl_size = "Розмір",
+        lbl_nimb_height = "Висота",
         lbl_box_style = "Стиль боксу",
         opt_all = "🎲 Все одразу",
         size_small = "Маленький",
@@ -181,6 +183,7 @@ local T = {
         hdr_custom_color = "Custom color",
         lbl_particle_type = "Particle type",
         lbl_size = "Size",
+        lbl_nimb_height = "Height",
         lbl_box_style = "Box style",
         opt_all = "🎲 All at once",
         size_small = "Small",
@@ -700,7 +703,8 @@ local function startMainScript()
     local NimbConfig = {
         Enabled = false,
         Color = Color3.fromRGB(255, 215, 0),
-        Size = "Средний"
+        Size = "Средний",
+        Height = 0.8
     }
     local ParticleConfig = {
         Enabled = false,
@@ -2009,6 +2013,59 @@ local function startMainScript()
             else NimbConfig.Size = "Большой" end
             if rebuildNimb then rebuildNimb() end
         end)
+
+        local heightRow = Instance.new("Frame", settingsModal)
+        heightRow.Size = UDim2.new(1, 0, 0, 34)
+        heightRow.BackgroundTransparency = 1
+        local heightLabel = Instance.new("TextLabel", heightRow)
+        heightLabel.Size = UDim2.new(0, 86, 1, 0)
+        heightLabel.BackgroundTransparency = 1
+        heightLabel.Text = t("lbl_nimb_height")
+        heightLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
+        heightLabel.TextSize = 13
+        heightLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        heightLabel.TextXAlignment = Enum.TextXAlignment.Left
+        local heightValue = Instance.new("TextLabel", heightRow)
+        heightValue.Size = UDim2.new(0, 54, 1, 0)
+        heightValue.Position = UDim2.new(0, 90, 0, 0)
+        heightValue.BackgroundTransparency = 1
+        heightValue.Text = string.format("%.1f", NimbConfig.Height)
+        heightValue.TextColor3 = Color3.fromRGB(255, 255, 255)
+        heightValue.TextSize = 14
+        heightValue.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        local heightUp = Instance.new("TextButton", heightRow)
+        heightUp.Size = UDim2.new(0, 28, 0, 28)
+        heightUp.Position = UDim2.new(1, -40, 0, 3)
+        heightUp.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+        heightUp.BorderSizePixel = 0
+        heightUp.Text = "▲"
+        heightUp.TextColor3 = Color3.fromRGB(255, 255, 255)
+        heightUp.TextSize = 12
+        heightUp.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        Instance.new("UICorner", heightUp).CornerRadius = UDim.new(0, 8)
+        local heightDown = Instance.new("TextButton", heightRow)
+        heightDown.Size = UDim2.new(0, 28, 0, 28)
+        heightDown.Position = UDim2.new(1, -78, 0, 3)
+        heightDown.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+        heightDown.BorderSizePixel = 0
+        heightDown.Text = "▼"
+        heightDown.TextColor3 = Color3.fromRGB(255, 255, 255)
+        heightDown.TextSize = 12
+        heightDown.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        Instance.new("UICorner", heightDown).CornerRadius = UDim.new(0, 8)
+        local function updateHeightLabel()
+            heightValue.Text = string.format("%.1f", NimbConfig.Height)
+        end
+        heightUp.MouseButton1Click:Connect(function()
+            NimbConfig.Height = math.min(2, math.floor((NimbConfig.Height + 0.1) * 10 + 0.5) / 10)
+            updateHeightLabel()
+            if rebuildNimb then rebuildNimb() end
+        end)
+        heightDown.MouseButton1Click:Connect(function()
+            NimbConfig.Height = math.max(0.2, math.floor((NimbConfig.Height - 0.1) * 10 + 0.5) / 10)
+            updateHeightLabel()
+            if rebuildNimb then rebuildNimb() end
+        end)
     end)
 
     -- HUD
@@ -2078,7 +2135,8 @@ local function startMainScript()
                 Nimb = {
                     Enabled = NimbConfig.Enabled,
                     Color = { NimbConfig.Color.R, NimbConfig.Color.G, NimbConfig.Color.B },
-                    Size = NimbConfig.Size
+                    Size = NimbConfig.Size,
+                    Height = NimbConfig.Height
                 },
                 Particles = {
                     Enabled = ParticleConfig.Enabled,
@@ -2104,6 +2162,7 @@ local function startMainScript()
                 NimbConfig.Enabled = data.Nimb.Enabled
                 NimbConfig.Color = Color3.fromRGB(data.Nimb.Color[1], data.Nimb.Color[2], data.Nimb.Color[3])
                 NimbConfig.Size = data.Nimb.Size or "Средний"
+                NimbConfig.Height = data.Nimb.Height or 0.8
                 cardReferences.Nimb.SetState(NimbConfig.Enabled)
                 if rebuildNimb then rebuildNimb() end
             end
@@ -2331,13 +2390,13 @@ local function startMainScript()
             destroyNimb()
             return
         end
-        local key = NimbConfig.Size .. "|" .. tostring(NimbConfig.Color)
+        local key = NimbConfig.Size .. "|" .. tostring(NimbConfig.Color) .. "|" .. tostring(NimbConfig.Height)
         if nimbBuilt == key then return end
         destroyNimb()
         local radius = ({ ["Маленький"] = 0.55, ["Средний"] = 0.75, ["Большой"] = 0.95 })[NimbConfig.Size] or 0.75
         local count = 44
         local segLen = 2 * radius * math.sin(math.pi / count) * 1.35
-        local offY = head.Size.Y * 0.8
+        local offY = head.Size.Y * NimbConfig.Height
         for i = 1, count do
             local s = Instance.new("Part")
             s.Name = "Nimb"
