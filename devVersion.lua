@@ -2279,7 +2279,11 @@ local function startMainScript()
                 Watermark = cardReferences.Watermark.GetState(),
                 TargetHUD = cardReferences.TargetHUD.GetState(),
                 Fullbright = cardReferences.Fullbright.GetState(),
-                NoFog = cardReferences.NoFog.GetState()
+                NoFog = cardReferences.NoFog.GetState(),
+                HUD = {
+                    Watermark = { watermarkFrame.Position.X.Scale, watermarkFrame.Position.X.Offset, watermarkFrame.Position.Y.Scale, watermarkFrame.Position.Y.Offset },
+                    TargetHUD = { targetHudFrame.Position.X.Scale, targetHudFrame.Position.X.Offset, targetHudFrame.Position.Y.Scale, targetHudFrame.Position.Y.Offset }
+                }
             }
             persistConfigs()
             return true
@@ -2330,6 +2334,16 @@ local function startMainScript()
             if data.TargetHUD ~= nil then cardReferences.TargetHUD.SetState(data.TargetHUD) end
             if data.Fullbright ~= nil then cardReferences.Fullbright.SetState(data.Fullbright) end
             if data.NoFog ~= nil then cardReferences.NoFog.SetState(data.NoFog) end
+            if data.HUD then
+                if data.HUD.Watermark then
+                    local p = data.HUD.Watermark
+                    watermarkFrame.Position = UDim2.new(p[1], p[2], p[3], p[4])
+                end
+                if data.HUD.TargetHUD then
+                    local p = data.HUD.TargetHUD
+                    targetHudFrame.Position = UDim2.new(p[1], p[2], p[3], p[4])
+                end
+            end
             return true
         end
 
