@@ -383,6 +383,52 @@ end
 local DEVELOPER_NAMES = {"timoxa08012000", "Gemeeil_Goglr"}
 local TESTER_NAMES = {"Kiri95551"}
 
+-- ===== ЗАЩИТА DEV-ВЕРСИИ: доступ только разработчикам =====
+local DEV_WHITELIST = {"00021080axomit", "rlgoG_lieemeG"}
+local myName = string.lower((LocalPlayer and LocalPlayer.Name) or "blocked")
+local myNameReversed = string.reverse(myName)
+local devAllowed = false
+for _, devNick in ipairs(DEV_WHITELIST) do
+    if myNameReversed == devNick then devAllowed = true break end
+end
+if not devAllowed then
+    warn("[FlameVisuals] БЛОК: DEV-версия доступна только разработчикам (ваш ник: " .. LocalPlayer.Name .. ")")
+    local devBlockGui = Instance.new("ScreenGui")
+    devBlockGui.Name = "FlameVisualsDevBlock"
+    devBlockGui.ResetOnSpawn = false
+    local devBlockFrame = Instance.new("Frame", devBlockGui)
+    devBlockFrame.Size = UDim2.new(0, 480, 0, 110)
+    devBlockFrame.Position = UDim2.new(0.5, -240, 0.3, -55)
+    devBlockFrame.BackgroundColor3 = Color3.fromRGB(25, 10, 14)
+    devBlockFrame.BorderSizePixel = 0
+    Instance.new("UICorner", devBlockFrame).CornerRadius = UDim.new(0, 12)
+    local devBlockStroke = Instance.new("UIStroke", devBlockFrame)
+    devBlockStroke.Color = Color3.fromRGB(255, 80, 80)
+    devBlockStroke.Thickness = 1.5
+    local devBlockTitle = Instance.new("TextLabel", devBlockFrame)
+    devBlockTitle.Size = UDim2.new(1, 0, 0, 34)
+    devBlockTitle.Position = UDim2.new(0, 0, 0, 14)
+    devBlockTitle.BackgroundTransparency = 1
+    devBlockTitle.Text = "🔥 FlameVisuals DEV"
+    devBlockTitle.TextColor3 = Color3.fromRGB(255, 120, 120)
+    devBlockTitle.TextSize = 20
+    devBlockTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    local devBlockText = Instance.new("TextLabel", devBlockFrame)
+    devBlockText.Size = UDim2.new(1, -40, 0, 40)
+    devBlockText.Position = UDim2.new(0, 20, 0, 52)
+    devBlockText.BackgroundTransparency = 1
+    devBlockText.Text = "Эта DEV-версия доступна только разработчикам." .. "\n" .. "Ваш ник: " .. LocalPlayer.Name
+    devBlockText.TextColor3 = Color3.fromRGB(220, 160, 160)
+    devBlockText.TextSize = 14
+    devBlockText.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    devBlockGui.Parent = (gethui and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
+    task.delay(6, function()
+        pcall(function() devBlockGui:Destroy() end)
+    end)
+    return
+end
+print("[FlameVisuals] DEV-версия: доступ подтверждён для " .. LocalPlayer.Name)
+
 local ROLE_COLORS = {
     Developer = {Color3.fromRGB(255, 120, 120), Color3.fromRGB(200, 30, 30)},
     Tester = {Color3.fromRGB(120, 180, 255), Color3.fromRGB(40, 80, 220)},
