@@ -1,4 +1,5 @@
 -- LocalScript: FlameVisuals Client (финальная версия, цвет частиц не сбрасывается)
+print("[FlameVisuals] v6 — палитра стабильна (InputType-фикс)")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11,9 +12,372 @@ local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
-local CORRECT_KEY = "flamevisualsbest"
+local API_BASE = "https://flamevisuals.yavampir60.workers.dev" -- API через Cloudflare Worker (обходит защиту)
+local SITE_URL = "https://flamevisuals.site.je" -- сайт для кнопки "Get Key"
+
+-- ===== ЯЗЫКИ (русский / українська / english) =====
+local LANG = "ru"
+local uiShared = {}
+local okGenv, genvTable = pcall(getgenv)
+if okGenv and type(genvTable) == "table" then
+    if genvTable.FlameVisualsUI then uiShared = genvTable.FlameVisualsUI end
+    genvTable.FlameVisualsUI = uiShared
+end
+uiShared.gen = uiShared.gen or 0
+uiShared.hooks = uiShared.hooks or {}
+local function resetUI()
+    uiShared.gen = uiShared.gen + 1
+    for k in pairs(uiShared.hooks) do
+        local hook = uiShared.hooks[k]
+        uiShared.hooks[k] = nil
+        pcall(hook)
+    end
+    if uiShared.screenGui then pcall(function() uiShared.screenGui:ClearAllChildren() end) end
+end
+local T = {
+    ru = {
+        lang_title = "Выберите язык",
+        key_subtitle = "Введите ключ для активации",
+        key_placeholder = "Введите ключ...",
+        key_activate = "Активировать",
+        key_get = "Получить ключ",
+        key_copied = "Ссылка на сайт скопирована",
+        key_checking = "Проверка ключа...",
+        key_checking_btn = "Проверка...",
+        key_ok = "Ключ верный! Загрузка...",
+        key_bad = "Неверный ключ!",
+        tab_Visuals = "Визуалы",
+        tab_HUD = "HUD",
+        tab_Utilities = "Утилиты",
+        tab_Configs = "Конфиги",
+        desc_particle_settings = "ПКМ - настройки частиц",
+        desc_rmb_settings = "ПКМ - настройки",
+        desc_top_hud = "Верхний HUD",
+        desc_target_info = "Инфо о цели",
+        desc_max_brightness = "Макс. яркость",
+        desc_no_fog = "Убирает туман",
+        desc_rejoin = "Перезайти",
+        desc_server_hop = "Сменить сервер",
+        hdr_particle_settings = "Настройки частиц",
+        hdr_nimb_settings = "Настройки Nimb",
+        hdr_esp_settings = "Настройки ESP",
+        hdr_interface_color = "Цвет интерфейса",
+        hdr_custom_color = "Свой цвет",
+        lbl_particle_type = "Тип частиц",
+        lbl_size = "Размер",
+        lbl_box_style = "Стиль бокса",
+        opt_all = "🎲 Все сразу",
+        size_small = "Маленький",
+        size_medium = "Средний",
+        size_large = "Большой",
+        color_gold = "Золотой",
+        color_red = "Красный",
+        color_purple = "Фиолетовый",
+        color_cyan = "Голубой",
+        color_green = "Зелёный",
+        color_white = "Белый",
+        color_blue = "Синий",
+        color_yellow = "Жёлтый",
+        color_orange = "Оранжевый",
+        color_pink = "Розовый",
+        cfg_name = "Имя конфига...",
+        cfg_create = "Создать",
+        cfg_empty = "Нет сохранённых конфигов",
+        cfg_load = "Загрузить",
+        cfg_save = "Сохранить",
+        cfg_delete = "Удалить",
+        err = "Ошибка: ",
+        hud_player = "Player",
+        esp_boxes = "Боксы",
+        esp_names = "Имена",
+        esp_health = "Здоровье",
+        esp_skeleton = "Скелет"
+    },
+    ua = {
+        lang_title = "Оберіть мову",
+        key_subtitle = "Введіть ключ для активації",
+        key_placeholder = "Введіть ключ...",
+        key_activate = "Активувати",
+        key_get = "Отримати ключ",
+        key_copied = "Посилання на сайт скопійовано",
+        key_checking = "Перевірка ключа...",
+        key_checking_btn = "Перевірка...",
+        key_ok = "Ключ вірний! Завантаження...",
+        key_bad = "Невірний ключ!",
+        tab_Visuals = "Візуали",
+        tab_HUD = "HUD",
+        tab_Utilities = "Утиліти",
+        tab_Configs = "Конфіги",
+        desc_particle_settings = "ПКМ - налаштування частинок",
+        desc_rmb_settings = "ПКМ - налаштування",
+        desc_top_hud = "Верхній HUD",
+        desc_target_info = "Інфо про ціль",
+        desc_max_brightness = "Макс. яскравість",
+        desc_no_fog = "Прибирає туман",
+        desc_rejoin = "Перезайти",
+        desc_server_hop = "Змінити сервер",
+        hdr_particle_settings = "Налаштування частинок",
+        hdr_nimb_settings = "Налаштування Nimb",
+        hdr_esp_settings = "Налаштування ESP",
+        hdr_interface_color = "Колір інтерфейсу",
+        hdr_custom_color = "Свій колір",
+        lbl_particle_type = "Тип частинок",
+        lbl_size = "Розмір",
+        lbl_box_style = "Стиль боксу",
+        opt_all = "🎲 Все одразу",
+        size_small = "Маленький",
+        size_medium = "Середній",
+        size_large = "Великий",
+        color_gold = "Золотистий",
+        color_red = "Червоний",
+        color_purple = "Фіолетовий",
+        color_cyan = "Блакитний",
+        color_green = "Зелений",
+        color_white = "Білий",
+        color_blue = "Синій",
+        color_yellow = "Жовтий",
+        color_orange = "Помаранчевий",
+        color_pink = "Рожевий",
+        cfg_name = "Ім'я конфіга...",
+        cfg_create = "Створити",
+        cfg_empty = "Немає збережених конфігів",
+        cfg_load = "Завантажити",
+        cfg_save = "Зберегти",
+        cfg_delete = "Видалити",
+        err = "Помилка: ",
+        hud_player = "Гравець",
+        esp_boxes = "Бокси",
+        esp_names = "Імена",
+        esp_health = "Здоров'я",
+        esp_skeleton = "Скелет"
+    },
+    en = {
+        lang_title = "Select language",
+        key_subtitle = "Enter your key to activate",
+        key_placeholder = "Enter key...",
+        key_activate = "Activate",
+        key_get = "Get Key",
+        key_copied = "Site link copied",
+        key_checking = "Checking key...",
+        key_checking_btn = "Checking...",
+        key_ok = "Key is valid! Loading...",
+        key_bad = "Invalid key!",
+        tab_Visuals = "Visuals",
+        tab_HUD = "HUD",
+        tab_Utilities = "Utilities",
+        tab_Configs = "Configs",
+        desc_particle_settings = "RMB - particle settings",
+        desc_rmb_settings = "RMB - settings",
+        desc_top_hud = "Top HUD",
+        desc_target_info = "Target info",
+        desc_max_brightness = "Max brightness",
+        desc_no_fog = "Removes fog",
+        desc_rejoin = "Rejoin",
+        desc_server_hop = "Server hop",
+        hdr_particle_settings = "Particle settings",
+        hdr_nimb_settings = "Nimb settings",
+        hdr_esp_settings = "ESP settings",
+        hdr_interface_color = "Interface color",
+        hdr_custom_color = "Custom color",
+        lbl_particle_type = "Particle type",
+        lbl_size = "Size",
+        lbl_box_style = "Box style",
+        opt_all = "🎲 All at once",
+        size_small = "Small",
+        size_medium = "Medium",
+        size_large = "Large",
+        color_gold = "Gold",
+        color_red = "Red",
+        color_purple = "Purple",
+        color_cyan = "Light blue",
+        color_green = "Green",
+        color_white = "White",
+        color_blue = "Blue",
+        color_yellow = "Yellow",
+        color_orange = "Orange",
+        color_pink = "Pink",
+        cfg_name = "Config name...",
+        cfg_create = "Create",
+        cfg_empty = "No saved configs",
+        cfg_load = "Load",
+        cfg_save = "Save",
+        cfg_delete = "Delete",
+        err = "Error: ",
+        hud_player = "Player",
+        esp_boxes = "Boxes",
+        esp_names = "Names",
+        esp_health = "Health",
+        esp_skeleton = "Skeleton"
+    }
+}
+
+local function t(key)
+    return (T[LANG] and T[LANG][key]) or T.ru[key] or key
+end
+
+local function trMsg(msg)
+    if LANG == "ru" then return msg end
+    for key, ruText in pairs(T.ru) do
+        if ruText == msg and T[LANG][key] then
+            return T[LANG][key]
+        end
+    end
+    return msg
+end
+print("[FlameVisuals] v3-offline | API: " .. API_BASE)
 local KEY_FILE = "FlameVisuals_Key.json"
 local DISCORD_LINK = "https://discord.gg/PHd78uaBWC"
+
+local SITE_COOKIE = "__test=1cfe70ec4606052ae3a77e474f1a8cc8"
+
+local lastHttpError = ""
+
+local function httpGet(url)
+    lastHttpError = ""
+    local resultBody = nil
+    local function viaHttpService()
+        local ok, body = pcall(HttpService.HttpGetAsync, HttpService, url)
+        if ok and type(body) == "string" then
+            resultBody = body
+        elseif lastHttpError == "" then
+            lastHttpError = "HttpGetAsync не сработал (HTTP выключен в игре?)"
+        end
+    end
+    local function viaRequest()
+        local httpRequest = request or http_request
+        if not httpRequest and syn then httpRequest = syn.request end
+        if not httpRequest then
+            if lastHttpError == "" then lastHttpError = "нет request()" end
+            return
+        end
+        local ok, res = pcall(httpRequest, { Url = url, Method = "GET", Headers = { Cookie = SITE_COOKIE } })
+        if ok and type(res) == "table" and type(res.Body) == "string" then
+            resultBody = res.Body
+        elseif lastHttpError == "" then
+            lastHttpError = "request() не сработал"
+        end
+    end
+    task.spawn(viaHttpService)
+    task.spawn(viaRequest)
+    local waited = 0
+    while resultBody == nil and waited < 8 do
+        task.wait(0.1)
+        waited = waited + 0.1
+    end
+    if resultBody then
+        if string.sub(resultBody, 1, 5) ~= "<html" then return resultBody end
+        lastHttpError = lastHttpError .. " | сервер вернул HTML-защиту"
+        return nil
+    end
+    if lastHttpError == "" then lastHttpError = "оба запроса зависли" end
+    return nil
+end
+
+local function verifyKeyOnline(key, username)
+    local url = API_BASE .. "/verify.php?key=" .. HttpService:UrlEncode(key) .. "&user=" .. HttpService:UrlEncode(username) .. "&lang=" .. LANG
+    local body = httpGet(url)
+    if not body then return nil end
+    local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
+    if not ok or type(data) ~= "table" then return nil end
+    return data
+end
+
+local KEY_SIGN_SECRET = "5f6a9c2e8b1d4f7a3c5e8a1b"
+
+local K256 = {
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2
+}
+
+local function u32bytes(v)
+    return string.char(
+        math.floor(v / 0x1000000) % 0x100,
+        math.floor(v / 0x10000) % 0x100,
+        math.floor(v / 0x100) % 0x100,
+        v % 0x100
+    )
+end
+
+local function sha256_raw(msg)
+    local with1 = msg .. "\128"
+    while #with1 % 64 ~= 56 do with1 = with1 .. "\0" end
+    local bitlen = #msg * 8
+    local lenHi = math.floor(bitlen / 0x100000000) % 0x100000000
+    local lenLo = bitlen % 0x100000000
+    local padded = with1 .. u32bytes(lenHi) .. u32bytes(lenLo)
+    local h0, h1, h2, h3, h4, h5, h6, h7 =
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
+    for i = 1, #padded, 64 do
+        local w = {}
+        for j = 0, 63, 4 do
+            local b1, b2, b3, b4 = string.byte(padded, i + j, i + j + 3)
+            w[#w + 1] = (b1 or 0) * 0x1000000 + (b2 or 0) * 0x10000 + (b3 or 0) * 0x100 + (b4 or 0)
+        end
+        for j = 17, 64 do
+            local s0 = bit32.bxor(bit32.rrotate(w[j - 15], 7), bit32.rrotate(w[j - 15], 18), bit32.rshift(w[j - 15], 3))
+            local s1 = bit32.bxor(bit32.rrotate(w[j - 2], 17), bit32.rrotate(w[j - 2], 19), bit32.rshift(w[j - 2], 10))
+            w[j] = bit32.band(w[j - 16] + s0 + w[j - 7] + s1, 0xffffffff)
+        end
+        local a, b, c, d, e, f, g, h = h0, h1, h2, h3, h4, h5, h6, h7
+        for j = 1, 64 do
+            local S1 = bit32.bxor(bit32.rrotate(e, 6), bit32.rrotate(e, 11), bit32.rrotate(e, 25))
+            local ch = bit32.bxor(bit32.band(e, f), bit32.band(bit32.bnot(e), g))
+            local t1 = bit32.band(h + S1 + ch + K256[j] + w[j], 0xffffffff)
+            local S0 = bit32.bxor(bit32.rrotate(a, 2), bit32.rrotate(a, 13), bit32.rrotate(a, 22))
+            local maj = bit32.bxor(bit32.band(a, b), bit32.bxor(bit32.band(a, c), bit32.band(b, c)))
+            local t2 = bit32.band(S0 + maj, 0xffffffff)
+            h, g, f, e, d, c, b, a = g, f, e, bit32.band(d + t1, 0xffffffff), c, b, a, bit32.band(t1 + t2, 0xffffffff)
+        end
+        h0 = bit32.band(h0 + a, 0xffffffff)
+        h1 = bit32.band(h1 + b, 0xffffffff)
+        h2 = bit32.band(h2 + c, 0xffffffff)
+        h3 = bit32.band(h3 + d, 0xffffffff)
+        h4 = bit32.band(h4 + e, 0xffffffff)
+        h5 = bit32.band(h5 + f, 0xffffffff)
+        h6 = bit32.band(h6 + g, 0xffffffff)
+        h7 = bit32.band(h7 + h, 0xffffffff)
+    end
+    return u32bytes(h0) .. u32bytes(h1) .. u32bytes(h2) .. u32bytes(h3)
+        .. u32bytes(h4) .. u32bytes(h5) .. u32bytes(h6) .. u32bytes(h7)
+end
+
+local function sha256_hex(msg)
+    local raw = sha256_raw(msg)
+    local hex = ""
+    for i = 1, #raw do
+        hex = hex .. string.format("%02x", string.byte(raw, i))
+    end
+    return hex
+end
+
+local function hmac_sha256_hex(key, msg)
+    if #key > 64 then key = sha256_raw(key) end
+    local ipad, opad = {}, {}
+    for i = 1, 64 do
+        local b = string.byte(key, i) or 0
+        ipad[i] = string.char(bit32.bxor(b, 0x36))
+        opad[i] = string.char(bit32.bxor(b, 0x5c))
+    end
+    local inner = sha256_raw(table.concat(ipad) .. msg)
+    return sha256_hex(table.concat(opad) .. inner)
+end
+
+local function verifyKeyLocal(key)
+    key = key:lower()
+    local base, days, sig = key:match("^(flame%-%w%w%w%w%-%w%w%w%w%-%w%w%w%w%-%w%w%w%w%-(%d+))%-(%x%x%x%x%x%x%x%x)$")
+    if not base then return nil end
+    if hmac_sha256_hex(KEY_SIGN_SECRET, base):sub(1, 8) ~= sig then return nil end
+    local n = tonumber(days)
+    if not n then return nil end
+    if n >= 9999 then return 4102444800 end
+    return os.time() + n * 86400
+end
 
 -- РОЛИ: впиши ники в нужный список, чтобы игрок получил роль
 local DEVELOPER_NAMES = {"timoxa08012000", "Gemeeil_Goglr"}
@@ -39,11 +403,15 @@ end
 --------------------------------------------------------------------------------
 -- SCREEN GUI
 --------------------------------------------------------------------------------
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FlameVisualsClient"
-screenGui.ResetOnSpawn = false
-screenGui.IgnoreGuiInset = true
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+local screenGui = uiShared.screenGui
+if not screenGui then
+    screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "FlameVisualsClient"
+    screenGui.ResetOnSpawn = false
+    screenGui.IgnoreGuiInset = true
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    uiShared.screenGui = screenGui
+end
 
 if gethui then
     screenGui.Parent = gethui()
@@ -68,21 +436,95 @@ local function isKeyValidToday()
     if not success or not content then return false end
     local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
     if not ok or type(data) ~= "table" then return false end
-    return data.key == CORRECT_KEY and data.date == getTodayDate()
+    if not data.key or not data.expires then return false end
+    return os.time() < data.expires
 end
 
-local function saveKeyToday()
+local function saveKeyToday(key, expires)
     if not writefile then return end
     pcall(writefile, KEY_FILE, HttpService:JSONEncode({
-        key = CORRECT_KEY,
-        date = getTodayDate()
+        key = key,
+        expires = expires,
+        savedLang = LANG
     }))
 end
 
-local function openDiscord()
-    if setclipboard then pcall(setclipboard, DISCORD_LINK) end
-    if syn and syn.open_url then pcall(syn.open_url, DISCORD_LINK)
-    elseif open_url then pcall(open_url, DISCORD_LINK) end
+local function getSavedLang()
+    if not (isfile and readfile) then return nil end
+    local success, content = pcall(readfile, KEY_FILE)
+    if not success or not content then return nil end
+    local ok, data = pcall(function() return HttpService:JSONDecode(content) end)
+    if not ok or type(data) ~= "table" then return nil end
+    if data.savedLang == "ru" or data.savedLang == "ua" or data.savedLang == "en" then
+        return data.savedLang
+    end
+    return nil
+end
+
+local function saveSavedLang()
+    if not writefile then return end
+    local data = {}
+    local success, content = pcall(readfile, KEY_FILE)
+    if success and content then
+        local ok, decoded = pcall(function() return HttpService:JSONDecode(content) end)
+        if ok and type(decoded) == "table" then data = decoded end
+    end
+    data.savedLang = LANG
+    pcall(writefile, KEY_FILE, HttpService:JSONEncode(data))
+end
+
+local function openURL(url)
+    if setclipboard then pcall(setclipboard, url) end
+    if syn and syn.open_url then pcall(syn.open_url, url)
+    elseif open_url then pcall(open_url, url) end
+end
+
+local function createLanguageUI(onDone)
+    local langFrame = Instance.new("Frame")
+    langFrame.Name = "LanguageSelect"
+    langFrame.Size = UDim2.new(0, 340, 0, 210)
+    langFrame.Position = UDim2.new(0.5, -170, 0.5, -105)
+    langFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+    langFrame.BorderSizePixel = 0
+    langFrame.Parent = screenGui
+    langFrame.ZIndex = 200
+    langFrame.ZIndex = 200
+    Instance.new("UICorner", langFrame).CornerRadius = UDim.new(0, 12)
+    local langStroke = Instance.new("UIStroke", langFrame)
+    langStroke.Color = Color3.fromRGB(168, 85, 247)
+    langStroke.Thickness = 1.5
+
+    local langTitle = Instance.new("TextLabel", langFrame)
+    langTitle.Size = UDim2.new(1, 0, 0, 40)
+    langTitle.Position = UDim2.new(0, 0, 0, 12)
+    langTitle.BackgroundTransparency = 1
+    langTitle.Text = t("lang_title")
+    langTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    langTitle.TextSize = 18
+    langTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+
+    local langs = {
+        {"ru", "🇷🇺  Русский"},
+        {"ua", "🇺🇦  Українська"},
+        {"en", "🇬🇧  English"}
+    }
+    for i, item in ipairs(langs) do
+        local btn = Instance.new("TextButton", langFrame)
+        btn.Size = UDim2.new(1, -40, 0, 34)
+        btn.Position = UDim2.new(0, 20, 0, 64 + (i - 1) * 42)
+        btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+        btn.Text = item[2]
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 15
+        btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+        btn.MouseButton1Click:Connect(function()
+            LANG = item[1]
+            saveSavedLang()
+            langFrame:Destroy()
+            if onDone then onDone() end
+        end)
+    end
 end
 
 local function createKeyUI(onSuccess)
@@ -112,7 +554,7 @@ local function createKeyUI(onSuccess)
     keySubtitle.Size = UDim2.new(1, -40, 0, 20)
     keySubtitle.Position = UDim2.new(0, 20, 0, 52)
     keySubtitle.BackgroundTransparency = 1
-    keySubtitle.Text = "Введите ключ для активации"
+    keySubtitle.Text = t("key_subtitle")
     keySubtitle.TextColor3 = Color3.fromRGB(160, 160, 175)
     keySubtitle.TextSize = 14
     keySubtitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
@@ -122,7 +564,7 @@ local function createKeyUI(onSuccess)
     keyInput.Position = UDim2.new(0, 20, 0, 82)
     keyInput.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
     keyInput.BorderSizePixel = 0
-    keyInput.PlaceholderText = "Введите ключ..."
+    keyInput.PlaceholderText = t("key_placeholder")
     keyInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
     keyInput.Text = ""
     keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -136,7 +578,7 @@ local function createKeyUI(onSuccess)
     activateBtn.Size = UDim2.new(0.5, -25, 0, 38)
     activateBtn.Position = UDim2.new(0, 20, 0, 136)
     activateBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
-    activateBtn.Text = "Activation"
+    activateBtn.Text = t("key_activate")
     activateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     activateBtn.TextSize = 15
     activateBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
@@ -146,7 +588,7 @@ local function createKeyUI(onSuccess)
     getKeyBtn.Size = UDim2.new(0.5, -25, 0, 38)
     getKeyBtn.Position = UDim2.new(0.5, 5, 0, 136)
     getKeyBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-    getKeyBtn.Text = "Get Key"
+    getKeyBtn.Text = t("key_get")
     getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     getKeyBtn.TextSize = 15
     getKeyBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
@@ -163,24 +605,61 @@ local function createKeyUI(onSuccess)
 
     getKeyBtn.MouseButton1Click:Connect(function()
         statusLabel.TextColor3 = Color3.fromRGB(120, 220, 120)
-        statusLabel.Text = "Ссылка скопирована + Discord открыт"
-        openDiscord()
+        statusLabel.Text = t("key_copied")
+        openURL(SITE_URL)
     end)
 
+    local checking = false
     local function tryActivate()
-        local entered = keyInput.Text:gsub("%s+", "")
-        if entered == CORRECT_KEY then
+        local entered = keyInput.Text:gsub("%s+", ""):lower()
+        if entered == "" or checking then return end
+        checking = true
+        statusLabel.TextColor3 = Color3.fromRGB(200, 200, 210)
+        statusLabel.Text = t("key_checking")
+        activateBtn.Text = t("key_checking_btn")
+        local done = false
+        local result = nil
+        task.spawn(function()
+            result = verifyKeyOnline(entered, LocalPlayer.Name)
+            done = true
+        end)
+        local expiry = verifyKeyLocal(entered)
+        local waited = 0
+        while not done and waited < 6 do
+            task.wait(0.1)
+            waited = waited + 0.1
+        end
+        checking = false
+        activateBtn.Text = t("key_activate")
+        if result and result.success then
             statusLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
-            statusLabel.Text = "Ключ верный! Загрузка..."
-            saveKeyToday()
+            statusLabel.Text = t("key_ok")
+            print("[FlameVisuals] Ключ принят онлайн")
+            saveKeyToday(entered, os.time() + (tonumber(result.expires_in) or 0))
             task.wait(0.4)
             keyFrame:Destroy()
             onSuccess()
-        else
+            return
+        elseif result then
             statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-            statusLabel.Text = "Неверный ключ!"
+            statusLabel.Text = trMsg(result.message or t("key_bad"))
+            print("[FlameVisuals] Ключ отклонён сервером: " .. tostring(result.message or "без сообщения"))
             keyInput.Text = ""
+            return
+        elseif expiry then
+            statusLabel.TextColor3 = Color3.fromRGB(80, 255, 120)
+            statusLabel.Text = t("key_ok")
+            print("[FlameVisuals] Ключ принят офлайн (локальная проверка)")
+            saveKeyToday(entered, expiry)
+            task.wait(0.4)
+            keyFrame:Destroy()
+            onSuccess()
+            return
         end
+        statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+        statusLabel.Text = t("key_bad")
+        print("[FlameVisuals] Ключ отклонён (нет сети?): " .. lastHttpError)
+        keyInput.Text = ""
     end
 
     activateBtn.MouseButton1Click:Connect(tryActivate)
@@ -193,6 +672,9 @@ end
 -- MAIN SCRIPT
 --------------------------------------------------------------------------------
 local function startMainScript()
+    resetUI()
+    local gen = uiShared.gen
+    print("[FlameVisuals] Создание меню...")
     local function makeDraggable(frame)
         local dragging, dragStart, startPos = false, nil, nil
         frame.InputBegan:Connect(function(input)
@@ -206,6 +688,7 @@ local function startMainScript()
             if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
         end)
         UserInputService.InputChanged:Connect(function(input)
+            if gen ~= uiShared.gen then return end
             if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 local delta = input.Position - dragStart
                 frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
@@ -213,19 +696,15 @@ local function startMainScript()
         end)
     end
 
-    local ESPConfig = {
-        Enabled = false,
-        Boxes = true,
-        Names = true,
-        Health = true,
-        Skeleton = true,
-        BoxStyle = "Normal",
-        Color = Color3.fromRGB(168, 85, 247)
-    }
     local TargetHUDConfig = { Enabled = false }
+    local NimbConfig = {
+        Enabled = false,
+        Color = Color3.fromRGB(255, 215, 0),
+        Size = "Средний"
+    }
     local ParticleConfig = {
         Enabled = false,
-        Type = "Stars",
+        Type = "All",
         Color = Color3.fromRGB(255, 215, 0)  -- по умолчанию золотой
     }
     local InterfaceConfig = { AccentColor = Color3.fromRGB(168, 85, 247) }
@@ -253,10 +732,11 @@ local function startMainScript()
     --------------------------------------------------------------------------------
     -- ХРАНИЛИЩЕ КОНФИГОВ В ПАМЯТИ
     --------------------------------------------------------------------------------
-    local configStorage = {}
     local activeParticles = {}
-    local espCache = {}
+    local rebuildNimb = nil
 
+    -- ХРАНИЛИЩЕ КОНФИГОВ (пресеты всех настроек)
+    local configStorage = {}
     local CONFIG_FILE = "FlameVisuals_Configs.json"
 
     local function persistConfigs()
@@ -270,9 +750,7 @@ local function startMainScript()
         local ok, content = pcall(readfile, CONFIG_FILE)
         if not ok or not content then return end
         local ok2, data = pcall(function() return HttpService:JSONDecode(content) end)
-        if ok2 and type(data) == "table" then
-            configStorage = data
-        end
+        if ok2 and type(data) == "table" then configStorage = data end
     end
 
     loadConfigsFromFile()
@@ -284,92 +762,6 @@ local function startMainScript()
         end
         table.sort(names)
         return names
-    end
-
-    local function saveESPConfig(name)
-        if name == nil or name == "" then return false end
-        local data = {
-            Enabled = ESPConfig.Enabled,
-            Boxes = ESPConfig.Boxes,
-            Names = ESPConfig.Names,
-            Health = ESPConfig.Health,
-            BoxStyle = ESPConfig.BoxStyle,
-            Skeleton = ESPConfig.Skeleton,
-            Color = {
-                R = ESPConfig.Color.R,
-                G = ESPConfig.Color.G,
-                B = ESPConfig.Color.B
-            },
-            ParticleColor = {
-                R = ParticleConfig.Color.R,
-                G = ParticleConfig.Color.G,
-                B = ParticleConfig.Color.B
-            },
-            ParticleType = ParticleConfig.Type
-        }
-        configStorage[name] = data
-        persistConfigs()
-        print("[Config] '" .. name .. "' сохранён")
-        return true
-    end
-
-    local function loadESPConfig(name)
-        local data = configStorage[name]
-        if not data then
-            print("[Config] Конфиг '" .. name .. "' не найден")
-            return false
-        end
-        ESPConfig.Enabled = data.Enabled or false
-        ESPConfig.Boxes = data.Boxes or true
-        ESPConfig.Names = data.Names or true
-        ESPConfig.Health = data.Health or true
-        ESPConfig.BoxStyle = data.BoxStyle or "Normal"
-        ESPConfig.Skeleton = data.Skeleton or true
-        if data.Color then
-            ESPConfig.Color = Color3.fromRGB(data.Color.R, data.Color.G, data.Color.B)
-        end
-        -- Загружаем цвет частиц
-        if data.ParticleColor then
-            ParticleConfig.Color = Color3.fromRGB(data.ParticleColor.R, data.ParticleColor.G, data.ParticleColor.B)
-        end
-        if data.ParticleType then
-            ParticleConfig.Type = data.ParticleType
-        end
-        -- Обновляем UI
-        if cardReferences and cardReferences.ESP then
-            cardReferences.ESP:SetState(ESPConfig.Enabled)
-        end
-        -- Обновляем цвет у всех существующих частиц
-        for _, entry in ipairs(activeParticles) do
-            local g = entry.part:FindFirstChildOfClass("BillboardGui")
-            if g then
-                local l = g:FindFirstChildOfClass("TextLabel")
-                if l then
-                    l.TextColor3 = ParticleConfig.Color
-                end
-            end
-        end
-        -- Обновляем цвет боксов и скелетов
-        for _, entry in pairs(espCache) do
-            entry.Stroke.Color = ESPConfig.Color
-            for _, line in ipairs(entry.Skeleton) do
-                line.BackgroundColor3 = ESPConfig.Color
-            end
-        end
-        print("[Config] '" .. name .. "' загружен (цвет частиц: " .. tostring(ParticleConfig.Color) .. ")")
-        return true
-    end
-
-    local function deleteESPConfig(name)
-        if configStorage[name] then
-            configStorage[name] = nil
-            persistConfigs()
-            print("[Config] '" .. name .. "' удалён")
-            return true
-        else
-            print("[Config] Конфиг '" .. name .. "' не найден")
-            return false
-        end
     end
 
     --------------------------------------------------------------------------------
@@ -401,7 +793,7 @@ local function startMainScript()
     targetNameLabel.Size = UDim2.new(1, -70, 0, 22)
     targetNameLabel.Position = UDim2.new(0, 62, 0, 8)
     targetNameLabel.BackgroundTransparency = 1
-    targetNameLabel.Text = "Player"
+    targetNameLabel.Text = t("hud_player")
     targetNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     targetNameLabel.TextSize = 16
     targetNameLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
@@ -500,6 +892,7 @@ local function startMainScript()
 
     local lastUpdate, frameCount, fps = tick(), 0, 0
     RunService.RenderStepped:Connect(function()
+        if gen ~= uiShared.gen then return end
         frameCount += 1
         local now = tick()
         if now - lastUpdate >= 0.5 then
@@ -642,24 +1035,13 @@ local function startMainScript()
             local grid = Instance.new("UIGridLayout", scroll)
             grid.CellSize = UDim2.new(0, 260, 0, 70)
             grid.CellPadding = UDim2.new(0, 15, 0, 15)
-        else
-            local padding = Instance.new("UIPadding", scroll)
-            padding.PaddingTop = UDim.new(0, 12)
-            padding.PaddingBottom = UDim.new(0, 12)
-            padding.PaddingLeft = UDim.new(0, 12)
-            padding.PaddingRight = UDim.new(0, 12)
-            local layout = Instance.new("UIListLayout", scroll)
-            layout.Padding = UDim.new(0, 12)
-            layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-            layout.SortOrder = Enum.SortOrder.LayoutOrder
-            scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
         end
         tabs[name] = scroll
         return scroll
     end
 
     local function switchTab(name)
-        headerText.Text = name
+        headerText.Text = t("tab_" .. name)
         for n, frame in pairs(tabs) do frame.Visible = (n == name) end
         for n, btn in pairs(tabButtons) do
             local selected = (n == name)
@@ -677,11 +1059,6 @@ local function startMainScript()
                 )
             end
         end
-        if name == "Configs" then
-            if _G.refreshConfigsList then
-                _G.refreshConfigsList()
-            end
-        end
     end
 
     for _, name in ipairs(categories) do
@@ -696,7 +1073,7 @@ local function startMainScript()
         local btnText = Instance.new("TextLabel", btn)
         btnText.Size = UDim2.new(1, 0, 1, 0)
         btnText.BackgroundTransparency = 1
-        btnText.Text = name
+        btnText.Text = t("tab_" .. name)
         btnText.TextColor3 = Color3.fromRGB(255, 255, 255)
         btnText.TextSize = 14
         btnText.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
@@ -735,9 +1112,11 @@ local function startMainScript()
     Instance.new("UIListLayout", settingsModal).Padding = UDim.new(0, 8)
 
     local activeDropdown = nil
+    local modalOpenGen = 0
 
     local function openSettingsModal(x, y)
         if activeDropdown then activeDropdown() end
+        modalOpenGen = modalOpenGen + 1
         settingsModal.Position = UDim2.new(0, x, 0, y)
         settingsModal.Visible = true
         settingsModal.BackgroundTransparency = 1
@@ -748,12 +1127,16 @@ local function startMainScript()
 
     local function closeSettingsModal()
         if activeDropdown then activeDropdown() end
+        local gen = modalOpenGen
         TweenService:Create(settingsModal, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
         TweenService:Create(modalStroke, TweenInfo.new(0.18), {Transparency = 1}):Play()
-        task.delay(0.19, function() settingsModal.Visible = false end)
+        task.delay(0.19, function()
+            if gen == modalOpenGen then settingsModal.Visible = false end
+        end)
     end
 
     UserInputService.InputBegan:Connect(function(input)
+        if gen ~= uiShared.gen then return end
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2) and settingsModal.Visible then
             local mousePos = UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
             local mPos, mSize = settingsModal.AbsolutePosition, settingsModal.AbsoluteSize
@@ -782,6 +1165,485 @@ local function startMainScript()
             end
         end
     end
+
+    -- Кнопка-палитра (цвет интерфейса) справа сверху
+    local paletteBtn = Instance.new("TextButton", mainGui)
+    paletteBtn.Size = UDim2.new(0, 34, 0, 34)
+    paletteBtn.Position = UDim2.new(1, -46, 0, 12)
+    paletteBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+    paletteBtn.Text = "🎨"
+    paletteBtn.TextSize = 16
+    paletteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    paletteBtn.AutoButtonColor = false
+    Instance.new("UICorner", paletteBtn).CornerRadius = UDim.new(0, 8)
+    local paletteStroke = Instance.new("UIStroke", paletteBtn)
+    paletteStroke.Color = InterfaceConfig.AccentColor
+    paletteStroke.Thickness = 1.2
+    paletteStroke.Transparency = 0.4
+
+    local function openPalette()
+        for _, child in ipairs(settingsModal:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UICorner") or child:IsA("UIStroke") or child:IsA("UIPadding")) then
+                child:Destroy()
+            end
+        end
+
+        local header = Instance.new("TextLabel", settingsModal)
+        header.Size = UDim2.new(1, 0, 0, 18)
+        header.BackgroundTransparency = 1
+        header.Text = "Цвет интерфейса"
+        header.TextColor3 = Color3.fromRGB(140, 140, 160)
+        header.TextSize = 12
+        header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        header.ZIndex = 101
+
+        local colors = {
+            {"Фиолетовый", Color3.fromRGB(168, 85, 247)},
+            {"Синий", Color3.fromRGB(59, 130, 246)},
+            {"Голубой", Color3.fromRGB(34, 211, 238)},
+            {"Зелёный", Color3.fromRGB(34, 197, 94)},
+            {"Жёлтый", Color3.fromRGB(234, 179, 8)},
+            {"Оранжевый", Color3.fromRGB(249, 115, 22)},
+            {"Красный", Color3.fromRGB(239, 68, 68)},
+            {"Розовый", Color3.fromRGB(236, 72, 153)},
+            {"Белый", Color3.fromRGB(255, 255, 255)}
+        }
+        local cur = InterfaceConfig.AccentColor
+        local r, g, b = math.floor(cur.R * 255), math.floor(cur.G * 255), math.floor(cur.B * 255)
+        local preview = nil
+        local labels = {}
+
+        local colorGrid = Instance.new("Frame", settingsModal)
+        colorGrid.Size = UDim2.new(1, 0, 0, 102)
+        colorGrid.BackgroundTransparency = 1
+        local grid = Instance.new("UIGridLayout", colorGrid)
+        grid.CellSize = UDim2.new(0, 76, 0, 30)
+        grid.CellPadding = UDim2.new(0, 5, 0, 6)
+        grid.FillDirection = Enum.FillDirection.Horizontal
+        grid.SortOrder = Enum.SortOrder.LayoutOrder
+        local colorButtons = {}
+        for _, item in ipairs(colors) do
+            local btn = Instance.new("TextButton", colorGrid)
+            btn.Size = UDim2.new(0, 76, 0, 30)
+            btn.BackgroundColor3 = (InterfaceConfig.AccentColor == item[2]) and item[2] or Color3.fromRGB(30, 30, 38)
+            btn.Text = item[1]
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.TextSize = 11
+            btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            btn.ZIndex = 101
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+            local st = Instance.new("UIStroke", btn)
+            st.Color = item[2]
+            st.Thickness = 1.3
+            st.Transparency = (InterfaceConfig.AccentColor == item[2]) and 0 or 0.6
+            colorButtons[item[1]] = {btn = btn, stroke = st, color = item[2]}
+            btn.MouseButton1Click:Connect(function()
+                updateInterfaceColor(item[2])
+                local cur = InterfaceConfig.AccentColor
+                r = math.floor(cur.R * 255)
+                g = math.floor(cur.G * 255)
+                b = math.floor(cur.B * 255)
+                if labels[1] then labels[1].Text = tostring(r) end
+                if labels[2] then labels[2].Text = tostring(g) end
+                if labels[3] then labels[3].Text = tostring(b) end
+                if preview then preview.BackgroundColor3 = cur end
+                for _, data in pairs(colorButtons) do
+                    local sel = data.color == item[2]
+                    TweenService:Create(data.btn, TweenInfo.new(0.18), {BackgroundColor3 = sel and item[2] or Color3.fromRGB(30, 30, 38)}):Play()
+                    TweenService:Create(data.stroke, TweenInfo.new(0.18), {Transparency = sel and 0 or 0.6}):Play()
+                end
+            end)
+        end
+
+        local customHeader = Instance.new("TextLabel", settingsModal)
+        customHeader.Size = UDim2.new(1, 0, 0, 18)
+        customHeader.BackgroundTransparency = 1
+        customHeader.Text = "Свой цвет"
+        customHeader.TextColor3 = Color3.fromRGB(200, 200, 210)
+        customHeader.TextSize = 13
+        customHeader.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+
+        preview = Instance.new("Frame", settingsModal)
+        preview.Size = UDim2.new(0, 54, 0, 54)
+        preview.BackgroundColor3 = cur
+        preview.BorderSizePixel = 0
+        Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 10)
+
+        local function applyCustom()
+            local new = Color3.fromRGB(math.clamp(r, 0, 255), math.clamp(g, 0, 255), math.clamp(b, 0, 255))
+            preview.BackgroundColor3 = new
+            updateInterfaceColor(new)
+        end
+
+        local channels = {
+            {"R", 1, Color3.fromRGB(255, 80, 80)},
+            {"G", 2, Color3.fromRGB(80, 255, 120)},
+            {"B", 3, Color3.fromRGB(80, 160, 255)}
+        }
+        for _, ch in ipairs(channels) do
+            local idx = ch[2]
+            local row = Instance.new("Frame", settingsModal)
+            row.Size = UDim2.new(1, 0, 0, 30)
+            row.BackgroundTransparency = 1
+
+            local chLabel = Instance.new("TextLabel", row)
+            chLabel.Size = UDim2.new(0, 24, 0, 30)
+            chLabel.BackgroundTransparency = 1
+            chLabel.Text = ch[1]
+            chLabel.TextColor3 = ch[3]
+            chLabel.TextSize = 14
+            chLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+
+            local minus = Instance.new("TextButton", row)
+            minus.Size = UDim2.new(0, 30, 0, 30)
+            minus.Position = UDim2.new(0, 28, 0, 0)
+            minus.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+            minus.Text = "-"
+            minus.TextColor3 = Color3.fromRGB(255, 255, 255)
+            minus.TextSize = 15
+            minus.AutoButtonColor = false
+            Instance.new("UICorner", minus).CornerRadius = UDim.new(0, 7)
+
+            local plus = Instance.new("TextButton", row)
+            plus.Size = UDim2.new(0, 30, 0, 30)
+            plus.Position = UDim2.new(0, 136, 0, 0)
+            plus.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+            plus.Text = "+"
+            plus.TextColor3 = Color3.fromRGB(255, 255, 255)
+            plus.TextSize = 15
+            plus.AutoButtonColor = false
+            Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 7)
+
+            local valBox = Instance.new("TextBox", row)
+            valBox.Size = UDim2.new(0, 70, 0, 30)
+            valBox.Position = UDim2.new(0, 62, 0, 0)
+            valBox.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+            valBox.BorderSizePixel = 0
+            valBox.Text = tostring(idx == 1 and r or idx == 2 and g or b)
+            valBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+            valBox.TextSize = 14
+            valBox.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            pcall(function()
+                    valBox.InputType = Enum.TextInputType.Number
+                end)
+            valBox.ClearTextOnFocus = false
+            valBox.ZIndex = 102
+            row.ZIndex = 101
+            local inpStroke = Instance.new("UIStroke", valBox)
+            inpStroke.Color = Color3.fromRGB(80, 80, 110)
+            inpStroke.Thickness = 1
+            Instance.new("UICorner", valBox).CornerRadius = UDim.new(0, 7)
+            Instance.new("UIPadding", valBox).PaddingLeft = UDim.new(0, 8)
+            labels[idx] = valBox
+
+            local applying = false
+            local function setChannel(v)
+                v = math.clamp(math.floor(tonumber(v) or 0), 0, 255)
+                if idx == 1 then r = v elseif idx == 2 then g = v else b = v end
+                if valBox.Text ~= tostring(v) then
+                    applying = true
+                    valBox.Text = tostring(v)
+                    applying = false
+                end
+                applyCustom()
+            end
+
+            minus.MouseButton1Click:Connect(function()
+                setChannel((idx == 1 and r or idx == 2 and g or b) - 5)
+            end)
+            plus.MouseButton1Click:Connect(function()
+                setChannel((idx == 1 and r or idx == 2 and g or b) + 5)
+            end)
+            valBox.TextChanged:Connect(function()
+                if applying then return end
+                local num = tonumber(valBox.Text)
+                if num ~= nil then
+                    setChannel(num)
+                end
+            end)
+            valBox.FocusLost:Connect(function()
+                if valBox.Text ~= tostring(idx == 1 and r or idx == 2 and g or b) then
+                    valBox.Text = tostring(idx == 1 and r or idx == 2 and g or b)
+                end
+            end)
+        end
+    end
+
+    local paletteModal = nil
+    local paletteCloseConn = nil
+
+    local function closePalette()
+        if paletteCloseConn then
+            paletteCloseConn:Disconnect()
+            paletteCloseConn = nil
+        end
+        if paletteModal then
+            paletteModal:Destroy()
+            paletteModal = nil
+        end
+    end
+
+    local function openPalette()
+        closePalette()
+        local modal = Instance.new("Frame", screenGui)
+        paletteModal = modal
+        modal.Size = UDim2.new(0, 272, 0, 0)
+        modal.AutomaticSize = Enum.AutomaticSize.Y
+        modal.BackgroundColor3 = Color3.fromRGB(13, 13, 18)
+        modal.BorderSizePixel = 0
+        modal.BackgroundTransparency = 0
+        modal.Visible = true
+        modal.ZIndex = 100
+        Instance.new("UICorner", modal).CornerRadius = UDim.new(0, 14)
+        local mStroke = Instance.new("UIStroke", modal)
+        mStroke.Color = Color3.fromRGB(25, 25, 35)
+        mStroke.Thickness = 1
+        local mPad = Instance.new("UIPadding", modal)
+        mPad.PaddingTop = UDim.new(0, 12)
+        mPad.PaddingBottom = UDim.new(0, 12)
+        mPad.PaddingLeft = UDim.new(0, 14)
+        mPad.PaddingRight = UDim.new(0, 14)
+        Instance.new("UIListLayout", modal).Padding = UDim.new(0, 8)
+
+        local btnPos = paletteBtn.AbsolutePosition
+        local scr = screenGui.AbsoluteSize
+        modal.Position = UDim2.new(0, math.clamp(btnPos.X - 236, 4, math.max(4, scr.X - 280)), 0, math.clamp(btnPos.Y + 40, 4, math.max(4, scr.Y - 360)))
+
+        paletteCloseConn = UserInputService.InputBegan:Connect(function(input)
+            if gen ~= uiShared.gen then return end
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+            if not paletteModal then return end
+            local pos = UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
+            local aPos, aSize = modal.AbsolutePosition, modal.AbsoluteSize
+            if pos.X < aPos.X or pos.X > aPos.X + aSize.X or pos.Y < aPos.Y or pos.Y > aPos.Y + aSize.Y then
+                closePalette()
+            end
+        end)
+
+        local ok, err = pcall(function()
+            local header = Instance.new("TextLabel", modal)
+            header.Size = UDim2.new(1, 0, 0, 18)
+            header.BackgroundTransparency = 1
+            header.Text = t("hdr_interface_color")
+            header.TextColor3 = Color3.fromRGB(140, 140, 160)
+            header.TextSize = 12
+            header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+            header.ZIndex = 101
+
+            local colors = {
+                {t("color_purple"), Color3.fromRGB(168, 85, 247)},
+                {t("color_blue"), Color3.fromRGB(59, 130, 246)},
+                {t("color_cyan"), Color3.fromRGB(34, 211, 238)},
+                {t("color_green"), Color3.fromRGB(34, 197, 94)},
+                {t("color_yellow"), Color3.fromRGB(234, 179, 8)},
+                {t("color_orange"), Color3.fromRGB(249, 115, 22)},
+                {t("color_red"), Color3.fromRGB(239, 68, 68)},
+                {t("color_pink"), Color3.fromRGB(236, 72, 153)},
+                {t("color_white"), Color3.fromRGB(255, 255, 255)}
+            }
+            local cur = InterfaceConfig.AccentColor
+            local r, g, b = math.floor(cur.R * 255), math.floor(cur.G * 255), math.floor(cur.B * 255)
+            local labels = {}
+            local preview = nil
+
+            local colorGrid = Instance.new("Frame", modal)
+            colorGrid.Size = UDim2.new(1, 0, 0, 102)
+            colorGrid.BackgroundTransparency = 1
+            local grid = Instance.new("UIGridLayout", colorGrid)
+            grid.CellSize = UDim2.new(0, 76, 0, 30)
+            grid.CellPadding = UDim2.new(0, 5, 0, 6)
+            grid.FillDirection = Enum.FillDirection.Horizontal
+            grid.SortOrder = Enum.SortOrder.LayoutOrder
+            local colorButtons = {}
+            for _, item in ipairs(colors) do
+                local btn = Instance.new("TextButton", colorGrid)
+                btn.Size = UDim2.new(0, 76, 0, 30)
+                btn.BackgroundColor3 = (InterfaceConfig.AccentColor == item[2]) and item[2] or Color3.fromRGB(30, 30, 38)
+                btn.Text = item[1]
+                btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                btn.TextSize = 11
+                btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                btn.ZIndex = 101
+                Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+                local st = Instance.new("UIStroke", btn)
+                st.Color = item[2]
+                st.Thickness = 1.3
+                st.Transparency = (InterfaceConfig.AccentColor == item[2]) and 0 or 0.6
+                colorButtons[item[1]] = {btn = btn, stroke = st, color = item[2]}
+                btn.MouseButton1Click:Connect(function()
+                    updateInterfaceColor(item[2])
+                    local newCur = InterfaceConfig.AccentColor
+                    r = math.floor(newCur.R * 255)
+                    g = math.floor(newCur.G * 255)
+                    b = math.floor(newCur.B * 255)
+                    if labels[1] then labels[1].Text = tostring(r) end
+                    if labels[2] then labels[2].Text = tostring(g) end
+                    if labels[3] then labels[3].Text = tostring(b) end
+                    if preview then preview.BackgroundColor3 = newCur end
+                    for _, data in pairs(colorButtons) do
+                        local sel = data.color == item[2]
+                        TweenService:Create(data.btn, TweenInfo.new(0.18), {BackgroundColor3 = sel and item[2] or Color3.fromRGB(30, 30, 38)}):Play()
+                        TweenService:Create(data.stroke, TweenInfo.new(0.18), {Transparency = sel and 0 or 0.6}):Play()
+                    end
+                end)
+            end
+
+            local customHeader = Instance.new("TextLabel", modal)
+            customHeader.Size = UDim2.new(1, 0, 0, 18)
+            customHeader.BackgroundTransparency = 1
+            customHeader.Text = t("hdr_custom_color")
+            customHeader.TextColor3 = Color3.fromRGB(200, 200, 210)
+            customHeader.TextSize = 13
+            customHeader.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+
+            preview = Instance.new("Frame", modal)
+            preview.Size = UDim2.new(0, 54, 0, 54)
+            preview.BackgroundColor3 = cur
+            preview.BorderSizePixel = 0
+            Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 10)
+
+            local function applyCustom()
+                local new = Color3.fromRGB(math.clamp(r, 0, 255), math.clamp(g, 0, 255), math.clamp(b, 0, 255))
+                preview.BackgroundColor3 = new
+                updateInterfaceColor(new)
+            end
+
+            local channels = {
+                {"R", 1, Color3.fromRGB(255, 80, 80)},
+                {"G", 2, Color3.fromRGB(80, 255, 120)},
+                {"B", 3, Color3.fromRGB(80, 160, 255)}
+            }
+            for _, ch in ipairs(channels) do
+                local rowOk, rowErr = pcall(function()
+                    local idx = ch[2]
+                    local row = Instance.new("Frame", modal)
+                    row.Size = UDim2.new(1, 0, 0, 30)
+                    row.BackgroundTransparency = 1
+
+                    local chLabel = Instance.new("TextLabel", row)
+                    chLabel.Size = UDim2.new(0, 24, 0, 30)
+                    chLabel.BackgroundTransparency = 1
+                    chLabel.Text = ch[1]
+                    chLabel.TextColor3 = ch[3]
+                    chLabel.TextSize = 14
+                    chLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+
+                    local minus = Instance.new("TextButton", row)
+                    minus.Size = UDim2.new(0, 30, 0, 30)
+                    minus.Position = UDim2.new(0, 28, 0, 0)
+                    minus.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+                    minus.Text = "-"
+                    minus.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    minus.TextSize = 15
+                    minus.AutoButtonColor = false
+                    Instance.new("UICorner", minus).CornerRadius = UDim.new(0, 7)
+
+                    local plus = Instance.new("TextButton", row)
+                    plus.Size = UDim2.new(0, 30, 0, 30)
+                    plus.Position = UDim2.new(0, 136, 0, 0)
+                    plus.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+                    plus.Text = "+"
+                    plus.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    plus.TextSize = 15
+                    plus.AutoButtonColor = false
+                    Instance.new("UICorner", plus).CornerRadius = UDim.new(0, 7)
+
+                    local valBox = Instance.new("TextBox", row)
+                    valBox.Size = UDim2.new(0, 70, 0, 30)
+                    valBox.Position = UDim2.new(0, 62, 0, 0)
+                    valBox.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+                    valBox.BorderSizePixel = 0
+                    valBox.Text = tostring(idx == 1 and r or idx == 2 and g or b)
+                    valBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    valBox.TextSize = 14
+                    valBox.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                    pcall(function()
+                        valBox.InputType = Enum.TextInputType.Number
+                    end)
+                    valBox.ClearTextOnFocus = false
+                    valBox.ZIndex = 102
+                    row.ZIndex = 101
+                    local inpStroke = Instance.new("UIStroke", valBox)
+                    inpStroke.Color = Color3.fromRGB(80, 80, 110)
+                    inpStroke.Thickness = 1
+                    Instance.new("UICorner", valBox).CornerRadius = UDim.new(0, 7)
+                    Instance.new("UIPadding", valBox).PaddingLeft = UDim.new(0, 8)
+                    labels[idx] = valBox
+
+                    local applying = false
+                    local function setChannel(v)
+                        v = math.clamp(math.floor(tonumber(v) or 0), 0, 255)
+                        if idx == 1 then r = v elseif idx == 2 then g = v else b = v end
+                        if valBox.Text ~= tostring(v) then
+                            applying = true
+                            valBox.Text = tostring(v)
+                            applying = false
+                        end
+                        applyCustom()
+                    end
+
+                    minus.MouseButton1Click:Connect(function()
+                        setChannel((idx == 1 and r or idx == 2 and g or b) - 5)
+                    end)
+                    plus.MouseButton1Click:Connect(function()
+                        setChannel((idx == 1 and r or idx == 2 and g or b) + 5)
+                    end)
+                    pcall(function()
+                        valBox.FocusLost:Connect(function()
+                            if valBox.Text ~= tostring(idx == 1 and r or idx == 2 and g or b) then
+                                valBox.Text = tostring(idx == 1 and r or idx == 2 and g or b)
+                            end
+                        end)
+                    end)
+                    pcall(function()
+                        valBox:GetPropertyChangedSignal("Text"):Connect(function()
+                            if applying then return end
+                            local num = tonumber(valBox.Text)
+                            if num ~= nil then
+                                setChannel(num)
+                            end
+                        end)
+                    end)
+                    pcall(function()
+                        valBox.TextChanged:Connect(function()
+                            if applying then return end
+                            local num = tonumber(valBox.Text)
+                            if num ~= nil then
+                                setChannel(num)
+                            end
+                        end)
+                    end)
+                end)
+                if not rowOk then
+                    print("[FlameVisuals] Ошибка строки " .. tostring(ch[1]) .. ": " .. tostring(rowErr))
+                end
+            end
+        end)
+        if not ok then
+            print("[FlameVisuals] Ошибка палитры: " .. tostring(err))
+            local errLabel = Instance.new("TextLabel", modal)
+            errLabel.Size = UDim2.new(1, 0, 0, 24)
+            errLabel.BackgroundTransparency = 1
+            errLabel.Text = t("err") .. tostring(err)
+            errLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            errLabel.TextSize = 12
+        end
+    end
+
+    local lastPaletteClose = 0
+    paletteBtn.MouseButton1Click:Connect(function()
+        if not paletteModal and tick() - lastPaletteClose > 0.5 then openPalette() end
+    end)
+    paletteBtn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if paletteModal then
+                lastPaletteClose = tick()
+                closePalette()
+            else
+                openPalette()
+            end
+        end
+    end)
 
     --------------------------------------------------------------------------------
     -- MODULE CARDS
@@ -1010,76 +1872,8 @@ local function startMainScript()
     --------------------------------------------------------------------------------
     -- VISUALS
     --------------------------------------------------------------------------------
-    cardReferences.ESP = createModuleCard(tabs["Visuals"], "ESP", "ПКМ - настройки", ESPConfig.Enabled, function(v)
-        ESPConfig.Enabled = v
-    end, function()
-        for _, child in ipairs(settingsModal:GetChildren()) do
-            if not (child:IsA("UIListLayout") or child:IsA("UICorner") or child:IsA("UIStroke") or child:IsA("UIPadding")) then
-                child:Destroy()
-            end
-        end
-
-        local header = Instance.new("TextLabel", settingsModal)
-        header.Size = UDim2.new(1, 0, 0, 18)
-        header.BackgroundTransparency = 1
-        header.Text = "Настройки ESP"
-        header.TextColor3 = Color3.fromRGB(140, 140, 160)
-        header.TextSize = 12
-        header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
-        header.ZIndex = 101
-
-        local function addToggle(name, current, callback)
-            local row = Instance.new("Frame", settingsModal)
-            row.Size = UDim2.new(1, 0, 0, 28)
-            row.BackgroundTransparency = 1
-            row.ZIndex = 101
-
-            local label = Instance.new("TextLabel", row)
-            label.Size = UDim2.new(1, -50, 1, 0)
-            label.BackgroundTransparency = 1
-            label.Text = name
-            label.TextColor3 = Color3.fromRGB(220, 220, 230)
-            label.TextSize = 13
-            label.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
-            label.TextXAlignment = Enum.TextXAlignment.Left
-            label.ZIndex = 101
-
-            local btn = Instance.new("TextButton", row)
-            btn.Size = UDim2.new(0, 38, 0, 20)
-            btn.Position = UDim2.new(1, -38, 0.5, -10)
-            btn.BackgroundColor3 = current and InterfaceConfig.AccentColor or Color3.fromRGB(35, 35, 45)
-            btn.Text = ""
-            btn.ZIndex = 101
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
-
-            local circle = Instance.new("Frame", btn)
-            circle.Size = UDim2.new(0, 14, 0, 14)
-            circle.Position = current and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
-            circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            circle.ZIndex = 102
-            Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
-
-            local state = current
-            btn.MouseButton1Click:Connect(function()
-                state = not state
-                TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = state and InterfaceConfig.AccentColor or Color3.fromRGB(35, 35, 45)}):Play()
-                TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)}):Play()
-                callback(state)
-            end)
-        end
-
-        addToggle("Боксы", ESPConfig.Boxes, function(v) ESPConfig.Boxes = v end)
-        addToggle("Имена", ESPConfig.Names, function(v) ESPConfig.Names = v end)
-        addToggle("Здоровье", ESPConfig.Health, function(v) ESPConfig.Health = v end)
-        addToggle("Скелет", ESPConfig.Skeleton, function(v) ESPConfig.Skeleton = v end)
-
-        createAnimatedDropdown(settingsModal, "Стиль бокса", {"Normal", "Rounded", "Thick"}, ESPConfig.BoxStyle, function(val)
-            ESPConfig.BoxStyle = val
-        end)
-    end)
-
     -- Глобальный список активных частиц
-    cardReferences.WorldParticles = createModuleCard(tabs["Visuals"], "World Particles", "ПКМ - настройки частиц", ParticleConfig.Enabled, function(v)
+    cardReferences.WorldParticles = createModuleCard(tabs["Visuals"], "World Particles", t("desc_particle_settings"), ParticleConfig.Enabled, function(v)
         ParticleConfig.Enabled = v
     end, function()
         for _, child in ipairs(settingsModal:GetChildren()) do
@@ -1091,82 +1885,38 @@ local function startMainScript()
         local header = Instance.new("TextLabel", settingsModal)
         header.Size = UDim2.new(1, 0, 0, 18)
         header.BackgroundTransparency = 1
-        header.Text = "Настройки частиц"
+        header.Text = t("hdr_particle_settings")
         header.TextColor3 = Color3.fromRGB(140, 140, 160)
         header.TextSize = 12
         header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
         header.ZIndex = 101
 
-        local typeDisplay = ParticleConfig.Type == "Dollars" and "💵 Dollars" or ParticleConfig.Type == "Stars" and "⭐ Stars" or "❤️ Hearts"
+        local typeDisplay = ParticleConfig.Type == "All" and t("opt_all")
+            or ParticleConfig.Type == "Dollars" and "💵 Dollars"
+            or ParticleConfig.Type == "Stars" and "⭐ Stars"
+            or "❤️ Hearts"
 
-        createAnimatedDropdown(settingsModal, "Тип частиц", {"💵 Dollars", "⭐ Stars", "❤️ Hearts"}, typeDisplay, function(val)
-            if val:find("Dollars") then ParticleConfig.Type = "Dollars"
-            elseif val:find("Stars") then ParticleConfig.Type = "Stars"
+        createAnimatedDropdown(settingsModal, t("lbl_particle_type"), {t("opt_all"), "💵 Dollars", "⭐ Stars", "❤️ Hearts"}, typeDisplay, function(val)
+            if val == t("opt_all") then ParticleConfig.Type = "All"
+            elseif val == "💵 Dollars" then ParticleConfig.Type = "Dollars"
+            elseif val == "⭐ Stars" then ParticleConfig.Type = "Stars"
             else ParticleConfig.Type = "Hearts" end
         end)
 
-        -- Дропдаун для цвета с исправленным обновлением
-        createAnimatedDropdown(settingsModal, "Цвет", {"Золотой", "Фиолетовый", "Красный", "Голубой", "Зелёный", "Белый"}, "Золотой", function(val)
-            local map = {
-                ["Золотой"] = Color3.fromRGB(255, 215, 0),
-                ["Фиолетовый"] = Color3.fromRGB(168, 85, 247),
-                ["Красный"] = Color3.fromRGB(255, 80, 80),
-                ["Голубой"] = Color3.fromRGB(80, 180, 255),
-                ["Зелёный"] = Color3.fromRGB(80, 255, 120),
-                ["Белый"] = Color3.fromRGB(255, 255, 255)
-            }
-            local newColor = map[val] or Color3.fromRGB(255, 215, 0)
-            ParticleConfig.Color = newColor
-            -- Обновляем все существующие частицы
-            for _, entry in ipairs(activeParticles) do
-                local g = entry.part:FindFirstChildOfClass("BillboardGui")
-                if g then
-                    local l = g:FindFirstChildOfClass("TextLabel")
-                    if l then
-                        l.TextColor3 = newColor
-                    end
-                end
-            end
-            print("[Цвет] Изменён на " .. val .. " (" .. tostring(newColor) .. ")")
-        end)
-    end)
-
-    -- HUD
-    cardReferences.Watermark = createModuleCard(tabs["HUD"], "Watermark", "Верхний HUD", true, function(v) watermarkFrame.Visible = v end, nil)
-    cardReferences.TargetHUD = createModuleCard(tabs["HUD"], "Target HUD", "Инфо о цели", false, function(v)
-        TargetHUDConfig.Enabled = v
-        if not v then targetHudFrame.Visible = false end
-    end, nil)
-
-    cardReferences.InterfaceColor = createModuleCard(tabs["HUD"], "Interface Color", "ПКМ - цвет интерфейса", true, function() end, function()
-        for _, child in ipairs(settingsModal:GetChildren()) do
-            if not (child:IsA("UIListLayout") or child:IsA("UICorner") or child:IsA("UIStroke") or child:IsA("UIPadding")) then child:Destroy() end
-        end
-        local header = Instance.new("TextLabel", settingsModal)
-        header.Size = UDim2.new(1, 0, 0, 18)
-        header.BackgroundTransparency = 1
-        header.Text = "Цвет интерфейса"
-        header.TextColor3 = Color3.fromRGB(140, 140, 160)
-        header.TextSize = 12
-        header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
-        header.ZIndex = 101
-
-        local colors = {
-            {"Фиолетовый", Color3.fromRGB(168, 85, 247)},
-            {"Синий", Color3.fromRGB(59, 130, 246)},
-            {"Голубой", Color3.fromRGB(34, 211, 238)},
-            {"Зелёный", Color3.fromRGB(34, 197, 94)},
-            {"Жёлтый", Color3.fromRGB(234, 179, 8)},
-            {"Оранжевый", Color3.fromRGB(249, 115, 22)},
-            {"Красный", Color3.fromRGB(239, 68, 68)},
-            {"Розовый", Color3.fromRGB(236, 72, 153)},
-            {"Белый", Color3.fromRGB(255, 255, 255)}
+        -- Цвет частиц (кнопки)
+        local pcolors = {
+            {t("color_gold"), Color3.fromRGB(255, 215, 0)},
+            {t("color_red"), Color3.fromRGB(255, 80, 80)},
+            {t("color_purple"), Color3.fromRGB(168, 85, 247)},
+            {t("color_cyan"), Color3.fromRGB(80, 180, 255)},
+            {t("color_green"), Color3.fromRGB(80, 255, 120)},
+            {t("color_white"), Color3.fromRGB(255, 255, 255)}
         }
-        local colorButtons = {}
-        for _, item in ipairs(colors) do
+        local pButtons = {}
+        for _, item in ipairs(pcolors) do
             local btn = Instance.new("TextButton", settingsModal)
             btn.Size = UDim2.new(1, 0, 0, 32)
-            btn.BackgroundColor3 = (InterfaceConfig.AccentColor == item[2]) and item[2] or Color3.fromRGB(30, 30, 38)
+            btn.BackgroundColor3 = (ParticleConfig.Color == item[2]) and item[2] or Color3.fromRGB(30, 30, 38)
             btn.Text = item[1]
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
             btn.TextSize = 14
@@ -1176,11 +1926,17 @@ local function startMainScript()
             local st = Instance.new("UIStroke", btn)
             st.Color = item[2]
             st.Thickness = 1.3
-            st.Transparency = (InterfaceConfig.AccentColor == item[2]) and 0 or 0.6
-            colorButtons[item[1]] = {btn = btn, stroke = st, color = item[2]}
+            st.Transparency = (ParticleConfig.Color == item[2]) and 0 or 0.6
+            pButtons[item[1]] = {btn = btn, stroke = st, color = item[2]}
             btn.MouseButton1Click:Connect(function()
-                updateInterfaceColor(item[2])
-                for _, data in pairs(colorButtons) do
+                ParticleConfig.Color = item[2]
+                -- Перекрашиваем все существующие частицы
+                for _, entry in ipairs(activeParticles) do
+                    if entry.label then
+                        entry.label.TextColor3 = item[2]
+                    end
+                end
+                for _, data in pairs(pButtons) do
                     local sel = data.color == item[2]
                     TweenService:Create(data.btn, TweenInfo.new(0.18), {BackgroundColor3 = sel and item[2] or Color3.fromRGB(30, 30, 38)}):Play()
                     TweenService:Create(data.stroke, TweenInfo.new(0.18), {Transparency = sel and 0 or 0.6}):Play()
@@ -1188,6 +1944,79 @@ local function startMainScript()
             end)
         end
     end)
+
+    cardReferences.Nimb = createModuleCard(tabs["Visuals"], "Nimb", t("desc_rmb_settings"), NimbConfig.Enabled, function(v)
+        NimbConfig.Enabled = v
+        if rebuildNimb then rebuildNimb() end
+    end, function()
+        for _, child in ipairs(settingsModal:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UICorner") or child:IsA("UIStroke") or child:IsA("UIPadding")) then
+                child:Destroy()
+            end
+        end
+
+        local header = Instance.new("TextLabel", settingsModal)
+        header.Size = UDim2.new(1, 0, 0, 18)
+        header.BackgroundTransparency = 1
+        header.Text = t("hdr_nimb_settings")
+        header.TextColor3 = Color3.fromRGB(140, 140, 160)
+        header.TextSize = 12
+        header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        header.ZIndex = 101
+
+        local colors = {
+            {t("color_gold"), Color3.fromRGB(255, 215, 0)},
+            {t("color_yellow"), Color3.fromRGB(255, 230, 120)},
+            {t("color_white"), Color3.fromRGB(255, 255, 255)},
+            {t("color_blue"), Color3.fromRGB(80, 180, 255)},
+            {t("color_purple"), Color3.fromRGB(168, 85, 247)},
+            {t("color_pink"), Color3.fromRGB(255, 120, 200)},
+            {t("color_green"), Color3.fromRGB(80, 255, 120)},
+            {t("color_red"), Color3.fromRGB(255, 80, 80)}
+        }
+        local colorButtons = {}
+        for _, item in ipairs(colors) do
+            local btn = Instance.new("TextButton", settingsModal)
+            btn.Size = UDim2.new(1, 0, 0, 32)
+            btn.BackgroundColor3 = (NimbConfig.Color == item[2]) and item[2] or Color3.fromRGB(30, 30, 38)
+            btn.Text = item[1]
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.TextSize = 14
+            btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            btn.ZIndex = 101
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+            local st = Instance.new("UIStroke", btn)
+            st.Color = item[2]
+            st.Thickness = 1.3
+            st.Transparency = (NimbConfig.Color == item[2]) and 0 or 0.6
+            colorButtons[item[1]] = {btn = btn, stroke = st, color = item[2]}
+            btn.MouseButton1Click:Connect(function()
+                NimbConfig.Color = item[2]
+                if rebuildNimb then rebuildNimb() end
+                for _, data in pairs(colorButtons) do
+                    local sel = data.color == item[2]
+                    TweenService:Create(data.btn, TweenInfo.new(0.18), {BackgroundColor3 = sel and item[2] or Color3.fromRGB(30, 30, 38)}):Play()
+                    TweenService:Create(data.stroke, TweenInfo.new(0.18), {Transparency = sel and 0 or 0.6}):Play()
+                end
+            end)
+        end
+
+        local ruToSizeKey = {["Маленький"] = "small", ["Средний"] = "medium", ["Большой"] = "large"}
+        local currentSizeKey = ruToSizeKey[NimbConfig.Size] or "medium"
+        createAnimatedDropdown(settingsModal, t("lbl_size"), {t("size_small"), t("size_medium"), t("size_large")}, t("size_" .. currentSizeKey), function(val)
+            if val == t("size_small") then NimbConfig.Size = "Маленький"
+            elseif val == t("size_medium") then NimbConfig.Size = "Средний"
+            else NimbConfig.Size = "Большой" end
+            if rebuildNimb then rebuildNimb() end
+        end)
+    end)
+
+    -- HUD
+    cardReferences.Watermark = createModuleCard(tabs["HUD"], "Watermark", t("desc_top_hud"), true, function(v) watermarkFrame.Visible = v end, nil)
+    cardReferences.TargetHUD = createModuleCard(tabs["HUD"], "Target HUD", t("desc_target_info"), false, function(v)
+        TargetHUDConfig.Enabled = v
+        if not v then targetHudFrame.Visible = false end
+    end, nil)
 
     -- UTILITIES
     local origAmbient = Lighting.Ambient
@@ -1197,7 +2026,7 @@ local function startMainScript()
     local origAtmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
     if origAtmosphere then origAtmosphere:SetAttribute("OriginalDensity", origAtmosphere.Density) end
 
-    cardReferences.Fullbright = createModuleCard(tabs["Utilities"], "Fullbright", "Макс. яркость", false, function(v)
+    cardReferences.Fullbright = createModuleCard(tabs["Utilities"], "Fullbright", t("desc_max_brightness"), false, function(v)
         if v then
             Lighting.Ambient = Color3.fromRGB(255, 255, 255)
             Lighting.OutdoorAmbient = Color3.fromRGB(255, 255, 255)
@@ -1207,7 +2036,7 @@ local function startMainScript()
         end
     end, nil)
 
-    cardReferences.NoFog = createModuleCard(tabs["Utilities"], "No Fog", "Убирает туман", false, function(v)
+    cardReferences.NoFog = createModuleCard(tabs["Utilities"], "No Fog", t("desc_no_fog"), false, function(v)
         if v then
             Lighting.FogEnd = 100000
             Lighting.FogStart = 0
@@ -1219,11 +2048,11 @@ local function startMainScript()
         end
     end, nil)
 
-    cardReferences.Rejoin = createModuleCard(tabs["Utilities"], "Rejoin", "Перезайти", false, function(v)
+    cardReferences.Rejoin = createModuleCard(tabs["Utilities"], "Rejoin", t("desc_rejoin"), false, function(v)
         if v then TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer) end
     end, nil)
 
-    cardReferences.ServerHop = createModuleCard(tabs["Utilities"], "Server Hop", "Сменить сервер", false, function(v)
+    cardReferences.ServerHop = createModuleCard(tabs["Utilities"], "Server Hop", t("desc_server_hop"), false, function(v)
         if v then
             pcall(function()
                 local servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/0?sortOrder=Asc&limit=100")).data
@@ -1238,10 +2067,67 @@ local function startMainScript()
     end, nil)
 
     --------------------------------------------------------------------------------
-    -- CONFIGS (в памяти)
+    -- CONFIGS (пресеты всех настроек)
     --------------------------------------------------------------------------------
     local configsTab = tabs["Configs"]
     if configsTab then
+        local function saveConfig(name)
+            if name == nil or name == "" then return false end
+            configStorage[name] = {
+                AccentColor = { InterfaceConfig.AccentColor.R, InterfaceConfig.AccentColor.G, InterfaceConfig.AccentColor.B },
+                Nimb = {
+                    Enabled = NimbConfig.Enabled,
+                    Color = { NimbConfig.Color.R, NimbConfig.Color.G, NimbConfig.Color.B },
+                    Size = NimbConfig.Size
+                },
+                Particles = {
+                    Enabled = ParticleConfig.Enabled,
+                    Type = ParticleConfig.Type,
+                    Color = { ParticleConfig.Color.R, ParticleConfig.Color.G, ParticleConfig.Color.B }
+                },
+                Watermark = cardReferences.Watermark.GetState(),
+                TargetHUD = cardReferences.TargetHUD.GetState(),
+                Fullbright = cardReferences.Fullbright.GetState(),
+                NoFog = cardReferences.NoFog.GetState()
+            }
+            persistConfigs()
+            return true
+        end
+
+        local function loadConfig(name)
+            local data = configStorage[name]
+            if not data then return false end
+            if data.AccentColor then
+                updateInterfaceColor(Color3.fromRGB(data.AccentColor[1], data.AccentColor[2], data.AccentColor[3]))
+            end
+            if data.Nimb then
+                NimbConfig.Enabled = data.Nimb.Enabled
+                NimbConfig.Color = Color3.fromRGB(data.Nimb.Color[1], data.Nimb.Color[2], data.Nimb.Color[3])
+                NimbConfig.Size = data.Nimb.Size or "Средний"
+                cardReferences.Nimb.SetState(NimbConfig.Enabled)
+                if rebuildNimb then rebuildNimb() end
+            end
+            if data.Particles then
+                ParticleConfig.Enabled = data.Particles.Enabled
+                ParticleConfig.Type = data.Particles.Type or "All"
+                ParticleConfig.Color = Color3.fromRGB(data.Particles.Color[1], data.Particles.Color[2], data.Particles.Color[3])
+                cardReferences.WorldParticles.SetState(ParticleConfig.Enabled)
+                for _, entry in ipairs(activeParticles) do
+                    if entry.label then entry.label.TextColor3 = ParticleConfig.Color end
+                end
+            end
+            if data.Watermark ~= nil then cardReferences.Watermark.SetState(data.Watermark) end
+            if data.TargetHUD ~= nil then cardReferences.TargetHUD.SetState(data.TargetHUD) end
+            if data.Fullbright ~= nil then cardReferences.Fullbright.SetState(data.Fullbright) end
+            if data.NoFog ~= nil then cardReferences.NoFog.SetState(data.NoFog) end
+            return true
+        end
+
+        local function deleteConfig(name)
+            configStorage[name] = nil
+            persistConfigs()
+        end
+
         local topFrame = Instance.new("Frame", configsTab)
         topFrame.Size = UDim2.new(1, 0, 0, 50)
         topFrame.BackgroundTransparency = 1
@@ -1251,7 +2137,7 @@ local function startMainScript()
         nameBox.Position = UDim2.new(0, 0, 0.5, -19)
         nameBox.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
         nameBox.BorderSizePixel = 0
-        nameBox.PlaceholderText = "Имя конфига..."
+        nameBox.PlaceholderText = t("cfg_name")
         nameBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
         nameBox.Text = ""
         nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1264,14 +2150,14 @@ local function startMainScript()
         createBtn.Size = UDim2.new(0.3, 0, 0, 38)
         createBtn.Position = UDim2.new(0.7, 5, 0.5, -19)
         createBtn.BackgroundColor3 = InterfaceConfig.AccentColor
-        createBtn.Text = "Создать"
+        createBtn.Text = t("cfg_create")
         createBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         createBtn.TextSize = 15
         createBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
         Instance.new("UICorner", createBtn).CornerRadius = UDim.new(0, 8)
 
         local listFrame = Instance.new("ScrollingFrame", configsTab)
-        listFrame.Size = UDim2.new(1, 0, 1, -60)
+        listFrame.Size = UDim2.new(1, 0, 0, 400)
         listFrame.Position = UDim2.new(0, 0, 0, 55)
         listFrame.BackgroundTransparency = 1
         listFrame.BorderSizePixel = 0
@@ -1294,7 +2180,7 @@ local function startMainScript()
                 local empty = Instance.new("TextLabel", listFrame)
                 empty.Size = UDim2.new(1, 0, 0, 30)
                 empty.BackgroundTransparency = 1
-                empty.Text = "Нет сохранённых конфигов"
+                empty.Text = t("cfg_empty")
                 empty.TextColor3 = Color3.fromRGB(120, 120, 140)
                 empty.TextSize = 14
                 empty.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
@@ -1320,40 +2206,39 @@ local function startMainScript()
                 btnLoad.Size = UDim2.new(0, 60, 0, 32)
                 btnLoad.Position = UDim2.new(0.5, 5, 0.5, -16)
                 btnLoad.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-                btnLoad.Text = "Загрузить"
+                btnLoad.Text = t("cfg_load")
                 btnLoad.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btnLoad.TextSize = 12
                 btnLoad.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
                 Instance.new("UICorner", btnLoad).CornerRadius = UDim.new(0, 6)
                 btnLoad.MouseButton1Click:Connect(function()
-                    loadESPConfig(name)
-                    refreshConfigsList()
+                    loadConfig(name)
                 end)
 
                 local btnSave = Instance.new("TextButton", row)
                 btnSave.Size = UDim2.new(0, 60, 0, 32)
                 btnSave.Position = UDim2.new(0.5, 70, 0.5, -16)
                 btnSave.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-                btnSave.Text = "Сохранить"
+                btnSave.Text = t("cfg_save")
                 btnSave.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btnSave.TextSize = 12
                 btnSave.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
                 Instance.new("UICorner", btnSave).CornerRadius = UDim.new(0, 6)
                 btnSave.MouseButton1Click:Connect(function()
-                    saveESPConfig(name)
+                    saveConfig(name)
                 end)
 
                 local btnDelete = Instance.new("TextButton", row)
                 btnDelete.Size = UDim2.new(0, 60, 0, 32)
                 btnDelete.Position = UDim2.new(0.5, 135, 0.5, -16)
                 btnDelete.BackgroundColor3 = Color3.fromRGB(55, 30, 30)
-                btnDelete.Text = "Удалить"
+                btnDelete.Text = t("cfg_delete")
                 btnDelete.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btnDelete.TextSize = 12
                 btnDelete.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
                 Instance.new("UICorner", btnDelete).CornerRadius = UDim.new(0, 6)
                 btnDelete.MouseButton1Click:Connect(function()
-                    deleteESPConfig(name)
+                    deleteConfig(name)
                     refreshConfigsList()
                 end)
             end
@@ -1361,62 +2246,61 @@ local function startMainScript()
 
         createBtn.MouseButton1Click:Connect(function()
             local newName = nameBox.Text:gsub("^%s*(.-)%s*$", "%1")
-            if newName == "" then
-                warn("[Config] Имя пустое")
-                return
-            end
-            if configStorage[newName] then
-                warn("[Config] Конфиг с именем '" .. newName .. "' уже существует")
-                return
-            end
-            local ok = saveESPConfig(newName)
+            if newName == "" then return end
+            if configStorage[newName] then return end
+            local ok = saveConfig(newName)
             if ok then
                 nameBox.Text = ""
                 refreshConfigsList()
-                print("[Config] Конфиг '" .. newName .. "' создан")
             end
         end)
 
-        _G.refreshConfigsList = refreshConfigsList
         refreshConfigsList()
     end
 
     --------------------------------------------------------------------------------
-    -- PARTICLES + ESP + TARGET HUD + HOTKEYS
+    -- PARTICLES + NIMB + TARGET HUD + HOTKEYS
     --------------------------------------------------------------------------------
     local particleFolder = Instance.new("Folder", workspace)
     particleFolder.Name = "FlameParticles"
-    local symbols = {Dollars = "💵", Stars = "⭐", Hearts = "❤️"}
+    local particleSymbols = { Stars = "★", Hearts = "♥", Dollars = "$" }
+
+    local function pickParticleType()
+        if ParticleConfig.Type ~= "All" then return ParticleConfig.Type end
+        return ({ "Stars", "Hearts", "Dollars" })[math.random(1, 3)]
+    end
 
     task.spawn(function()
         while true do
-            task.wait(0.35)
+            task.wait(0.3)
             if ParticleConfig.Enabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 local root = LocalPlayer.Character.HumanoidRootPart
+                local ptype = pickParticleType()
                 local part = Instance.new("Part")
                 part.Size = Vector3.new(0.1, 0.1, 0.1)
                 part.Transparency = 1
                 part.Anchored = true
                 part.CanCollide = false
-                part.Position = root.Position + Vector3.new(math.random(-8,8), math.random(2,6), math.random(-8,8))
+                part.Position = root.Position + Vector3.new(math.random(-8, 8), math.random(2, 6), math.random(-8, 8))
                 part.Parent = particleFolder
                 local bill = Instance.new("BillboardGui", part)
-                bill.Size = UDim2.new(0, 28, 0, 28)
+                bill.Size = UDim2.new(0, 34, 0, 34)
                 bill.AlwaysOnTop = true
                 local lab = Instance.new("TextLabel", bill)
                 lab.Size = UDim2.new(1, 0, 1, 0)
                 lab.BackgroundTransparency = 1
-                lab.Text = symbols[ParticleConfig.Type] or "⭐"
-                lab.TextColor3 = ParticleConfig.Color  -- используем актуальный цвет
-                lab.TextSize = 18
+                lab.Text = particleSymbols[ptype] or "★"
+                lab.TextColor3 = ParticleConfig.Color
+                lab.TextSize = (ptype == "Stars" and 22) or (ptype == "Dollars" and 24) or 20
                 lab.Font = Enum.Font.SourceSansBold
-                local entry = {part = part, start = tick(), max = 2.8}
+                local entry = {part = part, label = lab, start = tick(), max = 2.6}
                 table.insert(activeParticles, entry)
             end
         end
     end)
 
     RunService.Heartbeat:Connect(function()
+        if gen ~= uiShared.gen then return end
         for i = #activeParticles, 1, -1 do
             local p = activeParticles[i]
             local age = tick() - p.start
@@ -1425,298 +2309,69 @@ local function startMainScript()
                 table.remove(activeParticles, i)
             else
                 p.part.Position += Vector3.new(0, 0.035, 0)
-                local g = p.part:FindFirstChildOfClass("BillboardGui")
-                if g then
-                    local l = g:FindFirstChildOfClass("TextLabel")
-                    if l then l.TextTransparency = age / p.max end
-                end
+                if p.label then p.label.TextTransparency = age / p.max end
             end
         end
     end)
 
-    -- ESP
-    local espContainer = Instance.new("Folder", screenGui)
-    espContainer.Name = "ESPContainer"
+    -- Nimb (сплошное кольцо из 3D-частей на сварке — без дёрганий)
+    local nimbParts = {}
+    local nimbBuilt = nil
 
-    local SKELETON_SEGMENTS = {
-        {"Head", "Neck"},
-        {"Neck", "Torso"},
-        {"Torso", "Pelvis"},
-        {"Torso", "LShoulder"},
-        {"LShoulder", "LElbow", "LHand"},
-        {"Torso", "RShoulder"},
-        {"RShoulder", "RElbow", "RHand"},
-        {"Pelvis", "LHip"},
-        {"LHip", "LKnee", "LFoot"},
-        {"Pelvis", "RHip"},
-        {"RHip", "RKnee", "RFoot"}
-    }
-
-    local function getSkeletonPoints(character)
-        local head = character:FindFirstChild("Head")
-        local torso = character:FindFirstChild("UpperTorso") or character:FindFirstChild("Torso")
-        if not head or not torso then return nil end
-
-        local pts = {}
-        local headUp = head.CFrame.UpVector
-        pts.Head = head.Position + headUp * (head.Size.Y / 2)
-        pts.Neck = head.Position - headUp * (head.Size.Y / 2)
-        pts.Torso = torso.Position
-        local pelvis = character:FindFirstChild("LowerTorso") or character:FindFirstChild("Torso") or torso
-        pts.Pelvis = pelvis.Position
-
-        local torsoPos = torso.Position
-
-        -- конец части, ближний к торсу (плечо/бедро/локоть/колено)
-        local function nearEnd(part)
-            local a = part.Position + part.CFrame.UpVector * (part.Size.Y / 2)
-            local b = part.Position - part.CFrame.UpVector * (part.Size.Y / 2)
-            return (a - torsoPos).Magnitude < (b - torsoPos).Magnitude and a or b
-        end
-
-        -- конец части, дальний от торса (кисть/стопа)
-        local function farEnd(part)
-            local a = part.Position + part.CFrame.UpVector * (part.Size.Y / 2)
-            local b = part.Position - part.CFrame.UpVector * (part.Size.Y / 2)
-            return (a - torsoPos).Magnitude > (b - torsoPos).Magnitude and a or b
-        end
-
-        local function addLimb(prefix, upperName, lowerName, handName, r6Name)
-            local upper = character:FindFirstChild(upperName)
-            local lower = character:FindFirstChild(lowerName)
-            local handPart = character:FindFirstChild(handName)
-            local r6Part = character:FindFirstChild(r6Name)
-
-            if upper then
-                pts[prefix .. "Shoulder"] = nearEnd(upper)
-                if lower then
-                    pts[prefix .. "Elbow"] = nearEnd(lower)
-                end
-                if handPart then
-                    pts[prefix .. "Hand"] = handPart.Position
-                elseif lower then
-                    pts[prefix .. "Hand"] = farEnd(lower)
-                end
-            elseif r6Part then
-                pts[prefix .. "Shoulder"] = nearEnd(r6Part)
-                pts[prefix .. "Hand"] = farEnd(r6Part)
-            end
-        end
-
-        addLimb("L", "LeftUpperArm", "LeftLowerArm", "LeftHand", "Left Arm")
-        addLimb("R", "RightUpperArm", "RightLowerArm", "RightHand", "Right Arm")
-        addLimb("L", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "Left Leg")
-        addLimb("R", "RightUpperLeg", "RightLowerLeg", "RightFoot", "Right Leg")
-
-        return pts
+    local function destroyNimb()
+        for _, p in ipairs(nimbParts) do p:Destroy() end
+        nimbParts = {}
+        nimbBuilt = nil
     end
 
-    local function createESPObject(player)
-        local box = Instance.new("Frame", espContainer)
-        box.BackgroundTransparency = 1
-        box.BorderSizePixel = 0
-        box.Visible = false
-        local stroke = Instance.new("UIStroke", box)
-        stroke.Color = ESPConfig.Color
-        stroke.Thickness = 1.5
-
-        local nameLabel = Instance.new("TextLabel", espContainer)
-        nameLabel.BackgroundTransparency = 1
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nameLabel.TextSize = 13
-        nameLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
-        nameLabel.TextStrokeTransparency = 0.4
-        nameLabel.Visible = false
-
-        local hpLabel = Instance.new("TextLabel", espContainer)
-        hpLabel.BackgroundTransparency = 1
-        hpLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        hpLabel.TextSize = 12
-        hpLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
-        hpLabel.TextStrokeTransparency = 0.4
-        hpLabel.Visible = false
-
-        local skeletonLines = {}
-        for i = 1, 15 do
-            local line = Instance.new("Frame", espContainer)
-            line.BackgroundColor3 = ESPConfig.Color
-            line.BackgroundTransparency = 0
-            line.BorderSizePixel = 0
-            line.AnchorPoint = Vector2.new(0, 0.5)
-            line.ZIndex = 10
-            line.Visible = false
-            skeletonLines[i] = line
+    rebuildNimb = function()
+        local char = LocalPlayer.Character
+        local head = char and char:FindFirstChild("Head")
+        if not (NimbConfig.Enabled and head) then
+            destroyNimb()
+            return
         end
-
-        espCache[player] = {
-            Box = box,
-            Name = nameLabel,
-            Health = hpLabel,
-            Stroke = stroke,
-            Skeleton = skeletonLines
-        }
+        local key = NimbConfig.Size .. "|" .. tostring(NimbConfig.Color)
+        if nimbBuilt == key then return end
+        destroyNimb()
+        local radius = ({ ["Маленький"] = 0.55, ["Средний"] = 0.75, ["Большой"] = 0.95 })[NimbConfig.Size] or 0.75
+        local count = 44
+        local segLen = 2 * radius * math.sin(math.pi / count) * 1.35
+        local offY = head.Size.Y * 0.8
+        for i = 1, count do
+            local s = Instance.new("Part")
+            s.Name = "Nimb"
+            s.Shape = Enum.PartType.Cylinder
+            s.Material = Enum.Material.Neon
+            s.Anchored = false
+            s.CanCollide = false
+            s.TopSurface = Enum.SurfaceType.Smooth
+            s.BottomSurface = Enum.SurfaceType.Smooth
+            s.Size = Vector3.new(segLen, 0.11, 0.11)
+            s.Color = NimbConfig.Color
+            s.Parent = head
+            local w = Instance.new("Weld", s)
+            w.Part0 = head
+            w.Part1 = s
+            local ang = (i - 1) * (2 * math.pi / count)
+            w.C0 = CFrame.new(0, offY, 0) * CFrame.Angles(0, ang, 0) * CFrame.new(radius, 0, 0) * CFrame.Angles(-math.pi / 2, 0, 0)
+            table.insert(nimbParts, s)
+        end
+        nimbBuilt = key
     end
 
-    Players.PlayerRemoving:Connect(function(player)
-        if espCache[player] then
-            espCache[player].Box:Destroy()
-            espCache[player].Name:Destroy()
-            espCache[player].Health:Destroy()
-            for _, line in ipairs(espCache[player].Skeleton) do
-                line:Destroy()
-            end
-            espCache[player] = nil
-        end
+    LocalPlayer.CharacterAdded:Connect(function()
+        if gen ~= uiShared.gen then return end
+        task.wait(0.5)
+        rebuildNimb()
     end)
 
-    RunService.RenderStepped:Connect(function()
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                if not espCache[player] then createESPObject(player) end
-                local data = espCache[player]
-                local character = player.Character
-                local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-                local rootPart = character and character:FindFirstChild("HumanoidRootPart")
-
-                if ESPConfig.Enabled and character and humanoid and humanoid.Health > 0 and rootPart then
-                    local topPos = rootPart.Position + Vector3.new(0, 2.7, 0)
-                    local bottomPos = rootPart.Position - Vector3.new(0, 3.2, 0)
-                    local topScreen, topVis = Camera:WorldToViewportPoint(topPos)
-                    local bottomScreen, bottomVis = Camera:WorldToViewportPoint(bottomPos)
-
-                    if topVis and bottomVis and topScreen.Z > 0 and bottomScreen.Z > 0 then
-                        local height = math.abs(bottomScreen.Y - topScreen.Y)
-                        local width = height / 1.6
-                        local boxX = topScreen.X - width / 2
-                        local boxY = topScreen.Y
-
-                        if ESPConfig.BoxStyle == "Rounded" then
-                            data.Stroke.Thickness = 1.5
-                            if not data.Box:FindFirstChildOfClass("UICorner") then
-                                Instance.new("UICorner", data.Box).CornerRadius = UDim.new(0, 4)
-                            end
-                        elseif ESPConfig.BoxStyle == "Thick" then
-                            data.Stroke.Thickness = 3
-                            local corner = data.Box:FindFirstChildOfClass("UICorner")
-                            if corner then corner:Destroy() end
-                        else
-                            data.Stroke.Thickness = 1.5
-                            local corner = data.Box:FindFirstChildOfClass("UICorner")
-                            if corner then corner:Destroy() end
-                        end
-
-                        if ESPConfig.Boxes then
-                            data.Box.Size = UDim2.new(0, width, 0, height)
-                            data.Box.Position = UDim2.new(0, boxX, 0, boxY)
-                            data.Box.Visible = true
-                        else
-                            data.Box.Visible = false
-                        end
-                    else
-                        data.Box.Visible = false
-                    end
-
-                    if ESPConfig.Names then
-                        local screenPos, visible = Camera:WorldToViewportPoint(rootPart.Position + Vector3.new(0, 3.2, 0))
-                        if visible and screenPos.Z > 0 then
-                            data.Name.Text = player.Name
-                            data.Name.Position = UDim2.new(0, screenPos.X - 100, 0, screenPos.Y - 18)
-                            data.Name.Size = UDim2.new(0, 200, 0, 16)
-                            data.Name.Visible = true
-                        else
-                            data.Name.Visible = false
-                        end
-                    else
-                        data.Name.Visible = false
-                    end
-
-                    if ESPConfig.Health then
-                        local hp = math.floor(humanoid.Health)
-                        data.Health.Text = hp .. " HP"
-                        local screenPos, visible = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3.3, 0))
-                        if visible and screenPos.Z > 0 then
-                            data.Health.Position = UDim2.new(0, screenPos.X - 100, 0, screenPos.Y + 2)
-                            data.Health.Size = UDim2.new(0, 200, 0, 15)
-                            local pct = math.clamp(hp / math.max(humanoid.MaxHealth, 1), 0, 1)
-                            data.Health.TextColor3 = Color3.fromRGB(255 * (1 - pct), 255 * pct, 80)
-                            data.Health.Visible = true
-                        else
-                            data.Health.Visible = false
-                        end
-                    else
-                        data.Health.Visible = false
-                    end
-
-                    if ESPConfig.Skeleton then
-                        local pts = getSkeletonPoints(character)
-                        if pts then
-                            local screenPts = {}
-                            local allVisible = true
-                            for name, pos in pairs(pts) do
-                                local sp, vis = Camera:WorldToViewportPoint(pos)
-                                if vis and sp.Z > 0 then
-                                    screenPts[name] = Vector2.new(sp.X, sp.Y)
-                                else
-                                    allVisible = false
-                                    break
-                                end
-                            end
-                            if allVisible then
-                                local idx = 1
-                                for _, seg in ipairs(SKELETON_SEGMENTS) do
-                                    local prev = nil
-                                    for _, name in ipairs(seg) do
-                                        local p = screenPts[name]
-                                        if p then
-                                            if prev and data.Skeleton[idx] then
-                                                local line = data.Skeleton[idx]
-                                                local dx, dy = p.X - prev.X, p.Y - prev.Y
-                                                local len = math.sqrt(dx * dx + dy * dy)
-                                                if len < 3 then
-                                                    line.Visible = false
-                                                else
-                                                    line.Size = UDim2.new(0, len, 0, 1.5)
-                                                    line.Position = UDim2.new(0, prev.X, 0, prev.Y)
-                                                    line.Rotation = math.deg(math.atan2(dy, dx))
-                                                    line.Visible = true
-                                                end
-                                                idx += 1
-                                            end
-                                            prev = p
-                                        else
-                                            prev = nil
-                                        end
-                                    end
-                                end
-                                for i = idx, #data.Skeleton do
-                                    data.Skeleton[i].Visible = false
-                                end
-                            else
-                                for i = 1, #data.Skeleton do
-                                    data.Skeleton[i].Visible = false
-                                end
-                            end
-                        end
-                    else
-                        for i = 1, #data.Skeleton do
-                            data.Skeleton[i].Visible = false
-                        end
-                    end
-                else
-                    data.Box.Visible = false
-                    data.Name.Visible = false
-                    data.Health.Visible = false
-                    for i = 1, #data.Skeleton do
-                        data.Skeleton[i].Visible = false
-                    end
-                end
-            end
-        end
-    end)
+    rebuildNimb()
 
     -- Target HUD
     local currentTarget = nil
     RunService.RenderStepped:Connect(function()
+        if gen ~= uiShared.gen then return end
         if not TargetHUDConfig.Enabled then
             targetHudFrame.Visible = false
             currentTarget = nil
@@ -1756,21 +2411,77 @@ local function startMainScript()
         currentTarget = nil
     end)
 
+    -- Кнопка языка (нижний правый угол)
+    local langBtn = Instance.new("TextButton", mainGui)
+    langBtn.Size = UDim2.new(0, 36, 0, 36)
+    langBtn.Position = UDim2.new(1, -12, 1, -12)
+    langBtn.AnchorPoint = Vector2.new(1, 1)
+    langBtn.ZIndex = 60
+    langBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    langBtn.BorderSizePixel = 0
+    langBtn.Text = "🌐"
+    langBtn.TextSize = 17
+    langBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    langBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    Instance.new("UICorner", langBtn).CornerRadius = UDim.new(0, 9)
+    langBtn.MouseButton1Click:Connect(function()
+        createLanguageUI(function()
+            startMainScript()
+        end)
+    end)
+
     -- Hotkeys
+    local lastToggle = 0
     UserInputService.InputBegan:Connect(function(input)
+        if gen ~= uiShared.gen then return end
         if UserInputService:GetFocusedTextBox() then return end
         if input.KeyCode == Enum.KeyCode.RightShift or input.KeyCode == Enum.KeyCode.Insert then
+            local now = tick()
+            if now - lastToggle < 0.25 then return end
+            lastToggle = now
             mainGui.Visible = not mainGui.Visible
-            if not mainGui.Visible then closeSettingsModal() end
+            if not mainGui.Visible then
+                closeSettingsModal()
+                closePalette()
+            end
         end
     end)
+
+    local hookKey = tostring({})
+    uiShared.hooks[hookKey] = function()
+        pcall(destroyNimb)
+        for _, e in ipairs(activeParticles) do pcall(function() e.part:Destroy() end) end
+    end
+
+    print("[FlameVisuals] Меню загружено полностью")
 end
 
 --------------------------------------------------------------------------------
 -- START
 --------------------------------------------------------------------------------
-if isKeyValidToday() then
-    startMainScript()
-else
-    createKeyUI(startMainScript)
+print("[FlameVisuals] Запуск...")
+local okStart, errStart = pcall(function()
+    local function goToKeyCheck()
+        pcall(function()
+            if isKeyValidToday() then
+                print("[FlameVisuals] Ключ сохранён и действителен -> меню")
+                startMainScript()
+            else
+                print("[FlameVisuals] Ключа нет или истёк -> окно ввода")
+                createKeyUI(startMainScript)
+            end
+        end)
+    end
+    local savedLang = getSavedLang()
+    if savedLang then
+        LANG = savedLang
+        print("[FlameVisuals] Язык из сохранения: " .. LANG)
+        goToKeyCheck()
+    else
+        print("[FlameVisuals] Выбор языка...")
+        createLanguageUI(goToKeyCheck)
+    end
+end)
+if not okStart then
+    warn("[FlameVisuals] ОШИБКА ЗАПУСКА: " .. tostring(errStart))
 end
