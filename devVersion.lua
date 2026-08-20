@@ -32,7 +32,8 @@ local function resetUI()
         uiShared.hooks[k] = nil
         pcall(hook)
     end
-    if uiShared.screenGui then pcall(function() uiShared.screenGui:ClearAllChildren() end) end
+    ensureScreenGui()
+    pcall(function() screenGui:ClearAllChildren() end)
 end
 local T = {
     ru = {
@@ -453,23 +454,27 @@ end
 -- SCREEN GUI
 --------------------------------------------------------------------------------
 local screenGui = uiShared.screenGui
-if not screenGui then
-    screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "FlameVisualsClient"
-    screenGui.ResetOnSpawn = false
-    screenGui.IgnoreGuiInset = true
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    uiShared.screenGui = screenGui
+if screenGui and not screenGui.Parent then screenGui = nil end
+local function ensureScreenGui()
+    if not screenGui or not screenGui.Parent then
+        screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "FlameVisualsClient"
+        screenGui.ResetOnSpawn = false
+        screenGui.IgnoreGuiInset = true
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        uiShared.screenGui = screenGui
+        if gethui then
+            screenGui.Parent = gethui()
+        elseif syn and syn.protect_gui then
+            syn.protect_gui(screenGui)
+            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        else
+            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        end
+    end
+    return screenGui
 end
-
-if gethui then
-    screenGui.Parent = gethui()
-elseif syn and syn.protect_gui then
-    syn.protect_gui(screenGui)
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-else
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
+ensureScreenGui()
 
 --------------------------------------------------------------------------------
 -- KEY SYSTEM
@@ -2252,6 +2257,13 @@ local function startMainScript()
     --------------------------------------------------------------------------------
     local configsTab = tabs["Configs"]
     if configsTab then
+        local function colorFromArr(a)
+            if not a or #a < 3 then return nil end
+            if a[1] > 1 or a[2] > 1 or a[3] > 1 then
+                return Color3.fromRGB(math.clamp(a[1], 0, 255), math.clamp(a[2], 0, 255), math.clamp(a[3], 0, 255))
+            end
+            return Color3.new(a[1], a[2], a[3])
+        end
         local function saveConfig(name)
             if name == nil or name == "" then return false end
             configStorage[name] = {
@@ -2293,11 +2305,13 @@ local function startMainScript()
             local data = configStorage[name]
             if not data then return false end
             if data.AccentColor then
-                updateInterfaceColor(Color3.fromRGB(data.AccentColor[1], data.AccentColor[2], data.AccentColor[3]))
+                local c = colorFromArr(data.AccentColor)
+                if c then updateInterfaceColor(c) end
             end
             if data.Nimb then
                 NimbConfig.Enabled = data.Nimb.Enabled
-                NimbConfig.Color = Color3.fromRGB(data.Nimb.Color[1], data.Nimb.Color[2], data.Nimb.Color[3])
+                local nc = colorFromArr(data.Nimb.Color)
+                if nc then NimbConfig.Color = nc end
                 NimbConfig.Size = data.Nimb.Size or "Средний"
                 NimbConfig.Height = data.Nimb.Height or 0.8
                 cardReferences.Nimb.SetState(NimbConfig.Enabled)
@@ -2306,7 +2320,8 @@ local function startMainScript()
             if data.Particles then
                 ParticleConfig.Enabled = data.Particles.Enabled
                 ParticleConfig.Type = data.Particles.Type or "All"
-                ParticleConfig.Color = Color3.fromRGB(data.Particles.Color[1], data.Particles.Color[2], data.Particles.Color[3])
+                local pc = colorFromArr(data.Particles.Color)
+                if pc then ParticleConfig.Color = pc end
                 cardReferences.WorldParticles.SetState(ParticleConfig.Enabled)
                 for _, entry in ipairs(activeParticles) do
                     if entry.label then entry.label.TextColor3 = ParticleConfig.Color end
@@ -2320,7 +2335,8 @@ local function startMainScript()
                 ESPConfig.BoxStyle = data.ESP.BoxStyle or "Normal"
                 ESPConfig.Skeleton = data.ESP.Skeleton or true
                 if data.ESP.Color then
-                    ESPConfig.Color = Color3.fromRGB(data.ESP.Color[1], data.ESP.Color[2], data.ESP.Color[3])
+                    local ec = colorFromArr(data.ESP.Color)
+                    if ec then ESPConfig.Color = ec end
                 end
                 cardReferences.ESP:SetState(ESPConfig.Enabled)
                 for _, entry in pairs(espCache) do
