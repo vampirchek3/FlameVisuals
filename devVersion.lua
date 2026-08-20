@@ -1,7 +1,46 @@
 -- LocalScript: FlameVisuals Client (финальная версия, цвет частиц не сбрасывается)
 print("[FlameVisuals] v6 — палитра стабильна (InputType-фикс)")
-local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    LocalPlayer = Players:WaitForChild("LocalPlayer")
+end
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local fvDebug = nil
+local function ensureDebugLabel()
+    if not fvDebug or not fvDebug.Parent then
+        fvDebug = Instance.new("TextLabel")
+        fvDebug.Size = UDim2.new(1, 0, 0, 20)
+        fvDebug.Position = UDim2.new(0, 0, 0, 0)
+        fvDebug.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+        fvDebug.BackgroundTransparency = 0.3
+        fvDebug.BorderSizePixel = 0
+        fvDebug.TextColor3 = Color3.fromRGB(255, 120, 120)
+        fvDebug.TextSize = 13
+        fvDebug.TextXAlignment = Enum.TextXAlignment.Left
+        fvDebug.ZIndex = 500
+        fvDebug.Parent = PlayerGui
+    end
+    return fvDebug
+end
+local function showDebug(msg)
+    pcall(function()
+        ensureDebugLabel().Text = msg
+        task.delay(5, function()
+            pcall(function()
+                if fvDebug and fvDebug.Parent then fvDebug:Destroy() end
+                fvDebug = nil
+            end)
+        end)
+    end)
+end
+local function showError(msg)
+    pcall(function()
+        ensureDebugLabel().Text = msg
+    end)
+end
+showDebug("PLAYER OK")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local TweenService = game:GetService("TweenService")
@@ -9,32 +48,24 @@ local GuiService = game:GetService("GuiService")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
-local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 local API_BASE = "https://flamevisuals.yavampir60.workers.dev" -- API через Cloudflare Worker (обходит защиту)
 local SITE_URL = "https://flamevisuals.site.je" -- сайт для кнопки "Get Key"
 
--- ===== ЯЗЫКИ (русский / українська / english) =====
 local LANG = "ru"
+showDebug("START")
 local uiShared = {}
 local okGenv, genvTable = pcall(getgenv)
 if okGenv and type(genvTable) == "table" then
-    if genvTable.FlameVisualsUI then uiShared = genvTable.FlameVisualsUI end
-    genvTable.FlameVisualsUI = uiShared
+    pcall(function()
+        if genvTable.FlameVisualsUI then uiShared = genvTable.FlameVisualsUI end
+        genvTable.FlameVisualsUI = uiShared
+    end)
 end
 uiShared.gen = uiShared.gen or 0
 uiShared.hooks = uiShared.hooks or {}
-local function resetUI()
-    uiShared.gen = uiShared.gen + 1
-    for k in pairs(uiShared.hooks) do
-        local hook = uiShared.hooks[k]
-        uiShared.hooks[k] = nil
-        pcall(hook)
-    end
-    ensureScreenGui()
-    pcall(function() screenGui:ClearAllChildren() end)
-end
+showDebug("GENV OK")
 local T = {
     ru = {
         lang_title = "Выберите язык",
@@ -387,7 +418,6 @@ end
 local DEVELOPER_NAMES = {"timoxa08012000", "Gemeeil_Goglr"}
 local TESTER_NAMES = {"Kiri95551"}
 
--- ===== ЗАЩИТА DEV-ВЕРСИИ: доступ только разработчикам =====
 local DEV_WHITELIST = {"00021080axomit", "rlgoG_lieemeG"}
 local myName = string.lower((LocalPlayer and LocalPlayer.Name) or "blocked")
 local myNameReversed = string.reverse(myName)
@@ -439,20 +469,26 @@ local ROLE_COLORS = {
     User = {Color3.fromRGB(235, 235, 240), Color3.fromRGB(165, 165, 170)}
 }
 
-local function getPlayerRole(playerName)
-    local lowerName = string.lower(playerName or "")
-    for _, name in ipairs(DEVELOPER_NAMES) do
-        if string.lower(name) == lowerName then return "Developer" end
+local function getPlayerRole(player)
+    local candidates = {}
+    if typeof(player) == "Instance" then
+        candidates = {player.Name, player.DisplayName}
+    else
+        candidates = {player}
     end
-    for _, name in ipairs(TESTER_NAMES) do
-        if string.lower(name) == lowerName then return "Tester" end
+    for _, playerName in ipairs(candidates) do
+        local lowerName = string.lower(playerName or ""):gsub("%s+", "")
+        for _, name in ipairs(DEVELOPER_NAMES) do
+            if string.lower(name):gsub("%s+", "") == lowerName then return "Developer" end
+        end
+        for _, name in ipairs(TESTER_NAMES) do
+            if string.lower(name):gsub("%s+", "") == lowerName then return "Tester" end
+        end
     end
     return "User"
 end
 
---------------------------------------------------------------------------------
 -- SCREEN GUI
---------------------------------------------------------------------------------
 local screenGui = uiShared.screenGui
 if screenGui and not screenGui.Parent then screenGui = nil end
 local function ensureScreenGui()
@@ -463,22 +499,36 @@ local function ensureScreenGui()
         screenGui.IgnoreGuiInset = true
         screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
         uiShared.screenGui = screenGui
-        if gethui then
-            screenGui.Parent = gethui()
-        elseif syn and syn.protect_gui then
-            syn.protect_gui(screenGui)
-            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        local okG, container = pcall(function()
+            if gethui then return gethui() end
+            return nil
+        end)
+        if okG and container then
+            screenGui.Parent = container
         else
-            screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+            if syn and syn.protect_gui then
+                pcall(function() syn.protect_gui(screenGui) end)
+            end
+            pcall(function() screenGui.Parent = PlayerGui end)
         end
     end
     return screenGui
 end
 ensureScreenGui()
 
---------------------------------------------------------------------------------
+local function resetUI()
+    uiShared.gen = uiShared.gen + 1
+    for k in pairs(uiShared.hooks) do
+        local hook = uiShared.hooks[k]
+        uiShared.hooks[k] = nil
+        pcall(hook)
+    end
+    ensureScreenGui()
+    showDebug("GUI OK")
+    pcall(function() screenGui:ClearAllChildren() end)
+end
+
 -- KEY SYSTEM
---------------------------------------------------------------------------------
 local function getTodayDate()
     local t = os.date("*t")
     return string.format("%04d-%02d-%02d", t.year, t.month, t.day)
@@ -722,11 +772,10 @@ local function createKeyUI(onSuccess)
     end)
 end
 
---------------------------------------------------------------------------------
 -- MAIN SCRIPT
---------------------------------------------------------------------------------
 local function startMainScript()
     resetUI()
+    showDebug("MENU")
     local gen = uiShared.gen
     print("[FlameVisuals] Создание меню...")
     local function makeDraggable(frame)
@@ -793,9 +842,7 @@ local function startMainScript()
         return (color.R * 0.299 + color.G * 0.587 + color.B * 0.114) > 0.6
     end
 
-    --------------------------------------------------------------------------------
     -- ХРАНИЛИЩЕ КОНФИГОВ В ПАМЯТИ
-    --------------------------------------------------------------------------------
     local activeParticles = {}
     local espCache = {}
     local rebuildNimb = nil
@@ -829,9 +876,7 @@ local function startMainScript()
         return names
     end
 
-    --------------------------------------------------------------------------------
     -- TARGET HUD
-    --------------------------------------------------------------------------------
     local targetHudFrame = Instance.new("Frame")
     targetHudFrame.Name = "TargetHUD"
     targetHudFrame.Size = UDim2.new(0, 240, 0, 75)
@@ -887,9 +932,7 @@ local function startMainScript()
     healthBarFill.BorderSizePixel = 0
     Instance.new("UICorner", healthBarFill).CornerRadius = UDim.new(1, 0)
 
-    --------------------------------------------------------------------------------
     -- WATERMARK
-    --------------------------------------------------------------------------------
     local watermarkFrame = Instance.new("Frame")
     watermarkFrame.Name = "WatermarkFrame"
     watermarkFrame.Position = UDim2.new(0, 18, 0, 18)
@@ -932,7 +975,7 @@ local function startMainScript()
     wmBrand.TextSize = 14
     wmBrand.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
 
-    local roleName = getPlayerRole(LocalPlayer.Name)
+    local roleName = getPlayerRole(LocalPlayer)
     local roleColors = ROLE_COLORS[roleName]
 
     local wmRole = Instance.new("TextLabel", watermarkFrame)
@@ -970,9 +1013,7 @@ local function startMainScript()
         end
     end)
 
-    --------------------------------------------------------------------------------
     -- MAIN MENU
-    --------------------------------------------------------------------------------
     local mainGui = Instance.new("Frame")
     mainGui.Name = "MainMenu"
     mainGui.Size = UDim2.new(0, 750, 0, 480)
@@ -1149,9 +1190,7 @@ local function startMainScript()
     end
     switchTab("Visuals")
 
-    --------------------------------------------------------------------------------
     -- SETTINGS MODAL
-    --------------------------------------------------------------------------------
     local settingsModal = Instance.new("Frame")
     settingsModal.Name = "SettingsModal"
     settingsModal.Size = UDim2.new(0, 270, 0, 0)
@@ -1710,9 +1749,7 @@ local function startMainScript()
         end
     end)
 
-    --------------------------------------------------------------------------------
     -- MODULE CARDS
-    --------------------------------------------------------------------------------
     local cardReferences = {}
 
     local function createModuleCard(parentTab, title, description, defaultValue, onToggle, onRightClick)
@@ -1934,9 +1971,7 @@ local function startMainScript()
         end)
     end
 
-    --------------------------------------------------------------------------------
     -- VISUALS
-    --------------------------------------------------------------------------------
     cardReferences.ESP = createModuleCard(tabs["Visuals"], "ESP", t("desc_rmb_settings"), ESPConfig.Enabled, function(v)
         ESPConfig.Enabled = v
     end, function()
@@ -2003,6 +2038,47 @@ local function startMainScript()
         createAnimatedDropdown(settingsModal, t("lbl_box_style"), {"Normal", "Rounded", "Thick"}, ESPConfig.BoxStyle, function(val)
             ESPConfig.BoxStyle = val
         end)
+
+        -- Цвет ESP (кнопки)
+        local ecolors = {
+            {t("color_purple"), Color3.fromRGB(168, 85, 247)},
+            {t("color_cyan"), Color3.fromRGB(80, 180, 255)},
+            {t("color_red"), Color3.fromRGB(255, 80, 80)},
+            {t("color_green"), Color3.fromRGB(80, 255, 120)},
+            {t("color_gold"), Color3.fromRGB(255, 215, 0)},
+            {t("color_white"), Color3.fromRGB(255, 255, 255)}
+        }
+        local eButtons = {}
+        for _, item in ipairs(ecolors) do
+            local btn = Instance.new("TextButton", settingsModal)
+            btn.Size = UDim2.new(1, 0, 0, 32)
+            btn.BackgroundColor3 = (ESPConfig.Color == item[2]) and item[2] or Color3.fromRGB(30, 30, 38)
+            btn.Text = item[1]
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            btn.TextSize = 14
+            btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            btn.ZIndex = 101
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+            local st = Instance.new("UIStroke", btn)
+            st.Color = item[2]
+            st.Thickness = 1.3
+            st.Transparency = (ESPConfig.Color == item[2]) and 0 or 0.6
+            table.insert(eButtons, {btn = btn, stroke = st, color = item[2]})
+            btn.MouseButton1Click:Connect(function()
+                ESPConfig.Color = item[2]
+                for _, entry in pairs(espCache) do
+                    entry.Stroke.Color = item[2]
+                    for _, line in ipairs(entry.Skeleton) do
+                        line.BackgroundColor3 = item[2]
+                    end
+                end
+                for _, data in ipairs(eButtons) do
+                    local sel = data.color == item[2]
+                    TweenService:Create(data.btn, TweenInfo.new(0.18), {BackgroundColor3 = sel and item[2] or Color3.fromRGB(30, 30, 38)}):Play()
+                    TweenService:Create(data.stroke, TweenInfo.new(0.18), {Transparency = sel and 0 or 0.6}):Play()
+                end
+            end)
+        end
     end)
 
     -- Глобальный список активных частиц
@@ -2252,9 +2328,7 @@ local function startMainScript()
         end
     end, nil)
 
-    --------------------------------------------------------------------------------
     -- CONFIGS (пресеты всех настроек)
-    --------------------------------------------------------------------------------
     local configsTab = tabs["Configs"]
     if configsTab then
         local function colorFromArr(a)
@@ -2498,9 +2572,7 @@ local function startMainScript()
         refreshConfigsList()
     end
 
-    --------------------------------------------------------------------------------
     -- PARTICLES + NIMB + TARGET HUD + HOTKEYS
-    --------------------------------------------------------------------------------
     local particleFolder = Instance.new("Folder", workspace)
     particleFolder.Name = "FlameParticles"
     local particleSymbols = { Stars = "★", Hearts = "♥", Dollars = "$" }
@@ -2975,13 +3047,20 @@ local function startMainScript()
     print("[FlameVisuals] Меню загружено полностью")
 end
 
---------------------------------------------------------------------------------
+local realStartMainScript = startMainScript
+startMainScript = function()
+    local ok, err = pcall(realStartMainScript)
+    if not ok then
+        warn("[FlameVisuals] ОШИБКА МЕНЮ: " .. tostring(err))
+        showError("[FlameVisuals] ОШИБКА МЕНЮ: " .. tostring(err))
+    end
+end
+
 -- START
---------------------------------------------------------------------------------
 print("[FlameVisuals] Запуск...")
 local okStart, errStart = pcall(function()
     local function goToKeyCheck()
-        pcall(function()
+        local okIn, errIn = pcall(function()
             if isKeyValidToday() then
                 print("[FlameVisuals] Ключ сохранён и действителен -> меню")
                 startMainScript()
@@ -2990,6 +3069,10 @@ local okStart, errStart = pcall(function()
                 createKeyUI(startMainScript)
             end
         end)
+        if not okIn then
+            warn("[FlameVisuals] ОШИБКА КЛЮЧА: " .. tostring(errIn))
+            showError("[FlameVisuals] ОШИБКА: " .. tostring(errIn))
+        end
     end
     local savedLang = getSavedLang()
     if savedLang then
@@ -2998,9 +3081,11 @@ local okStart, errStart = pcall(function()
         goToKeyCheck()
     else
         print("[FlameVisuals] Выбор языка...")
+        showDebug("LANG")
         createLanguageUI(goToKeyCheck)
     end
 end)
 if not okStart then
     warn("[FlameVisuals] ОШИБКА ЗАПУСКА: " .. tostring(errStart))
+    showError("[FlameVisuals] ОШИБКА ЗАПУСКА: " .. tostring(errStart))
 end
