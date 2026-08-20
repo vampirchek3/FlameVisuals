@@ -418,12 +418,12 @@ end
 local DEVELOPER_NAMES = {"timoxa08012000", "Gemeeil_Goglr"}
 local TESTER_NAMES = {"Kiri95551"}
 
-local DEV_WHITELIST = {"00021080axomit", "rlgoG_lieemeG"}
+local DEV_WHITELIST = {"00021080axomit", "rlgog_lieemeG"}
 local myName = string.lower((LocalPlayer and LocalPlayer.Name) or "blocked")
 local myNameReversed = string.reverse(myName)
 local devAllowed = false
 for _, devNick in ipairs(DEV_WHITELIST) do
-    if myNameReversed == devNick then devAllowed = true break end
+    if myNameReversed == string.lower(devNick) then devAllowed = true break end
 end
 if not devAllowed then
     warn("[FlameVisuals] БЛОК: DEV-версия доступна только разработчикам (ваш ник: " .. LocalPlayer.Name .. ")")
