@@ -1232,22 +1232,51 @@ local function startMainScript()
         end
     end)
 
+    local function nameMatchesTag(clean, plr)
+        if clean == plr.Name or clean == plr.DisplayName then return true end
+        for _, nm in ipairs({ plr.Name, plr.DisplayName }) do
+            if #nm > 0 and #clean > #nm and string.sub(clean, 1, #nm) == nm then
+                local nxt = string.sub(clean, #nm + 1, #nm + 1)
+                if not string.match(nxt, "[%w_]") then return true end
+            end
+        end
+        return false
+    end
+
+    local function scanLabelsForFlame(root, plr)
+        for _, label in ipairs(root:GetDescendants()) do
+            if label:IsA("TextLabel") then
+                local txt = label.Text
+                if txt and #txt > 0 then
+                    local clean = trimStr(txt)
+                    if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
+                        if nameMatchesTag(clean, plr) then
+                            label.Text = "🔥 " .. clean
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     local function updateCharacterFlames()
         for _, plr in ipairs(Players:GetPlayers()) do
-            local char = plr.Character
-            if char then
-                for _, label in ipairs(char:GetDescendants()) do
-                    if label:IsA("TextLabel") then
-                        local txt = label.Text
-                        if txt and #txt > 0 then
-                            local clean = trimStr(txt)
-                            if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
-                                if clean == plr.Name or clean == plr.DisplayName then
-                                    if isFlameUser(plr) then
-                                        label.Text = "🔥 " .. clean
-                                    end
-                                end
-                            end
+            if isFlameUser(plr) then
+                local char = plr.Character
+                if char then
+                    scanLabelsForFlame(char, plr)
+                end
+            end
+        end
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
+                local ad = obj.Adornee
+                if ad then
+                    local char = ad:FindFirstAncestorOfClass("Model")
+                    if char then
+                        local plr = Players:GetPlayerFromCharacter(char)
+                        if plr and isFlameUser(plr) then
+                            scanLabelsForFlame(obj, plr)
                         end
                     end
                 end
