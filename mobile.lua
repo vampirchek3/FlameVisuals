@@ -133,7 +133,6 @@ local T = {
         region_dubai = "Дубай",
         region_beijing = "Пекин",
         region_tokyo = "Токио",
-        desc_flame_users = "Огонёк 🔥 у ников Flame-игроков (TAB)",
         hdr_esp_settings = "Настройки ESP",
         hdr_interface_color = "Цвет интерфейса",
         hdr_custom_color = "Свой цвет",
@@ -213,7 +212,6 @@ local T = {
         region_dubai = "Дубай",
         region_beijing = "Пекін",
         region_tokyo = "Токіо",
-        desc_flame_users = "Вогник 🔥 у ніків Flame-гравців (TAB)",
         hdr_esp_settings = "Налаштування ESP",
         hdr_interface_color = "Колір інтерфейсу",
         hdr_custom_color = "Свій колір",
@@ -293,7 +291,6 @@ local T = {
         region_dubai = "Dubai",
         region_beijing = "Beijing",
         region_tokyo = "Tokyo",
-        desc_flame_users = "🔥 tag on Flame players' names (TAB)",
         hdr_esp_settings = "ESP settings",
         hdr_interface_color = "Interface color",
         hdr_custom_color = "Custom color",
@@ -1135,8 +1132,7 @@ local function startMainScript()
     addTextOutline(timeDateLabel)
     addTextOutline(timeRegionLabel)
 
-    -- FLAME USERS (огонёк у ников в TAB / leaderboard)
-    local FlameUsersConfig = { Enabled = true }
+    -- FLAME USERS (огонёк у ников в TAB / leaderboard, включен всегда)
     local flameUserSet = {}
 
     local function isFlameUser(plr)
@@ -1208,17 +1204,6 @@ local function startMainScript()
         end
     end
 
-    local function clearLeaderboardFlames()
-        local root = getFlameScanRoot()
-        if not root then return end
-        for _, label in ipairs(root:GetDescendants()) do
-            if label:IsA("TextLabel") and label:GetAttribute("FlameTagged") then
-                label:SetAttribute("FlameTagged", nil)
-                label.Text = trimStr(label.Text:gsub("^🔥%s*", ""))
-            end
-        end
-    end
-
     task.delay(4, function()
         if gen ~= uiShared.gen then return end
         local root = getFlameScanRoot()
@@ -1231,29 +1216,49 @@ local function startMainScript()
 
     task.spawn(function()
         while gen == uiShared.gen do
-            if FlameUsersConfig.Enabled then
-                pcall(function()
-                    local body = httpGet(API_BASE .. "/online.php?user=" .. HttpService:UrlEncode(LocalPlayer.Name))
-                    if body then
-                        local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
-                        if ok and type(data) == "table" and type(data.users) == "table" then
-                            flameUserSet = {}
-                            for _, n in ipairs(data.users) do
-                                flameUserSet[string.lower(tostring(n))] = true
-                            end
+            pcall(function()
+                local body = httpGet(API_BASE .. "/online.php?user=" .. HttpService:UrlEncode(LocalPlayer.Name))
+                if body then
+                    local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
+                    if ok and type(data) == "table" and type(data.users) == "table" then
+                        flameUserSet = {}
+                        for _, n in ipairs(data.users) do
+                            flameUserSet[string.lower(tostring(n))] = true
                         end
                     end
-                end)
-            end
+                end
+            end)
             task.wait(20)
         end
     end)
 
+    local function updateCharacterFlames()
+        for _, plr in ipairs(Players:GetPlayers()) do
+            local char = plr.Character
+            if char then
+                for _, label in ipairs(char:GetDescendants()) do
+                    if label:IsA("TextLabel") then
+                        local txt = label.Text
+                        if txt and #txt > 0 then
+                            local clean = trimStr(txt)
+                            if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
+                                if clean == plr.Name or clean == plr.DisplayName then
+                                    if isFlameUser(plr) then
+                                        label.Text = "🔥 " .. clean
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     task.spawn(function()
         while gen == uiShared.gen do
-            if FlameUsersConfig.Enabled then
-                pcall(updateLeaderboardFlames)
-            end
+            pcall(updateLeaderboardFlames)
+            pcall(updateCharacterFlames)
             task.wait(1.5)
         end
     end)
@@ -2673,10 +2678,6 @@ if name ~= "Configs" then
         addToggle(t("time_seconds"), TimeConfig.ShowSeconds, function(v) TimeConfig.ShowSeconds = v end)
         addToggle(t("time_date"), TimeConfig.ShowDate, function(v) TimeConfig.ShowDate = v end)
     end)
-    cardReferences.FlameUsers = createModuleCard(tabs["HUD"], "Flame Users", t("desc_flame_users"), true, function(v)
-        FlameUsersConfig.Enabled = v
-        if not v then clearLeaderboardFlames() end
-    end, nil)
 
     -- UTILITIES
     local origAmbient = Lighting.Ambient
@@ -2765,7 +2766,6 @@ if name ~= "Configs" then
                     ShowSeconds = TimeConfig.ShowSeconds,
                     ShowDate = TimeConfig.ShowDate
                 },
-                FlameUsers = cardReferences.FlameUsers.GetState(),
                 Fullbright = cardReferences.Fullbright.GetState(),
                 NoFog = cardReferences.NoFog.GetState(),
                 HUD = {
@@ -2824,7 +2824,6 @@ if name ~= "Configs" then
                 TimeConfig.ShowSeconds = data.Time.ShowSeconds ~= false
                 TimeConfig.ShowDate = data.Time.ShowDate ~= false
             end
-            if data.FlameUsers ~= nil then cardReferences.FlameUsers.SetState(data.FlameUsers) end
             if data.Fullbright ~= nil then cardReferences.Fullbright.SetState(data.Fullbright) end
             if data.NoFog ~= nil then cardReferences.NoFog.SetState(data.NoFog) end
             if data.HUD then
