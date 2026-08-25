@@ -1,7 +1,46 @@
 -- LocalScript: FlameVisuals Client (финальная версия, цвет частиц не сбрасывается)
 print("[FlameVisuals] v6 — палитра стабильна (InputType-фикс)")
-local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+if not LocalPlayer then
+    LocalPlayer = Players:WaitForChild("LocalPlayer")
+end
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local fvDebug = nil
+local function ensureDebugLabel()
+    if not fvDebug or not fvDebug.Parent then
+        fvDebug = Instance.new("TextLabel")
+        fvDebug.Size = UDim2.new(1, 0, 0, 20)
+        fvDebug.Position = UDim2.new(0, 0, 0, 0)
+        fvDebug.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+        fvDebug.BackgroundTransparency = 0.3
+        fvDebug.BorderSizePixel = 0
+        fvDebug.TextColor3 = Color3.fromRGB(255, 120, 120)
+        fvDebug.TextSize = 13
+        fvDebug.TextXAlignment = Enum.TextXAlignment.Left
+        fvDebug.ZIndex = 500
+        fvDebug.Parent = PlayerGui
+    end
+    return fvDebug
+end
+local function showDebug(msg)
+    pcall(function()
+        ensureDebugLabel().Text = msg
+        task.delay(5, function()
+            pcall(function()
+                if fvDebug and fvDebug.Parent then fvDebug:Destroy() end
+                fvDebug = nil
+            end)
+        end)
+    end)
+end
+local function showError(msg)
+    pcall(function()
+        ensureDebugLabel().Text = msg
+    end)
+end
+showDebug("PLAYER OK")
+local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Stats = game:GetService("Stats")
 local TweenService = game:GetService("TweenService")
@@ -9,31 +48,45 @@ local GuiService = game:GetService("GuiService")
 local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
-local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
 local API_BASE = "https://flamevisuals.yavampir60.workers.dev" -- API через Cloudflare Worker (обходит защиту)
 local SITE_URL = "https://flamevisuals.site.je" -- сайт для кнопки "Get Key"
 
--- ===== ЯЗЫКИ (русский / українська / english) =====
 local LANG = "ru"
+
+-- ══════════ ШРИФТ ИНТЕРФЕЙСА (ТЕСТ) ══════════
+-- Смена шрифта = поменять одну строку ниже:
+local FONT_FAMILY = "rbxasset://fonts/families/GothamSSm.json"
+-- Другие варианты (скопируй в FONT_FAMILY):
+--  "rbxasset://fonts/families/GothamSSm.json"        -- Gotham SSm: чистый современный (стиль чит-меню)
+--  "rbxasset://fonts/families/Oswald.json"           -- Oswald: узкий, строгий
+--  "rbxasset://fonts/families/TitilliumWeb.json"     -- Titillium Web: техно
+--  "rbxasset://fonts/families/Jura.json"             -- Jura: футуристичный
+--  "rbxasset://fonts/families/Michroma.json"         -- Michroma: sci-fi
+--  "rbxasset://fonts/families/RobotoCondensed.json"  -- Roboto Condensed: компактный
+--  "rbxasset://fonts/families/RobotoMono.json"       -- Roboto Mono: моноширинный
+--  "rbxasset://fonts/families/Inconsolata.json"      -- Inconsolata: моноширинный "кодерский"
+--  "rbxasset://fonts/families/Nunito.json"           -- Nunito: мягкий, округлый
+local function uiFont(weight)
+    local ok, f = pcall(Font.new, FONT_FAMILY, weight or Enum.FontWeight.SemiBold)
+    if ok and f then return f end
+    return Font.new("rbxasset://fonts/families/SourceSansPro.json", weight or Enum.FontWeight.SemiBold)
+end
+-- ══════════════════════════════════════════════
+
+showDebug("START")
 local uiShared = {}
 local okGenv, genvTable = pcall(getgenv)
 if okGenv and type(genvTable) == "table" then
-    if genvTable.FlameVisualsUI then uiShared = genvTable.FlameVisualsUI end
-    genvTable.FlameVisualsUI = uiShared
+    pcall(function()
+        if genvTable.FlameVisualsUI then uiShared = genvTable.FlameVisualsUI end
+        genvTable.FlameVisualsUI = uiShared
+    end)
 end
 uiShared.gen = uiShared.gen or 0
 uiShared.hooks = uiShared.hooks or {}
-local function resetUI()
-    uiShared.gen = uiShared.gen + 1
-    for k in pairs(uiShared.hooks) do
-        local hook = uiShared.hooks[k]
-        uiShared.hooks[k] = nil
-        pcall(hook)
-    end
-    if uiShared.screenGui then pcall(function() uiShared.screenGui:ClearAllChildren() end) end
-end
+showDebug("GENV OK")
 local T = {
     ru = {
         lang_title = "Выберите язык",
@@ -60,6 +113,27 @@ local T = {
         desc_server_hop = "Сменить сервер",
         hdr_particle_settings = "Настройки частиц",
         hdr_nimb_settings = "Настройки Nimb",
+        hdr_watermark_settings = "Настройки Watermark",
+        desc_watermark = "Верхний HUD · ПКМ - настройки",
+        wm_show_ping = "Пинг",
+        wm_show_fps = "FPS",
+        wm_show_role = "Роль",
+        wm_show_player = "Ник",
+        desc_time = "Часы · ПКМ - настройки",
+        hdr_time_settings = "Настройки времени",
+        time_region = "Регион",
+        time_seconds = "Секунды",
+        time_date = "Дата",
+        region_moscow = "Москва",
+        region_kyiv = "Киев",
+        region_london = "Лондон",
+        region_berlin = "Берлин",
+        region_newyork = "Нью-Йорк",
+        region_losangeles = "Лос-Анджелес",
+        region_dubai = "Дубай",
+        region_beijing = "Пекин",
+        region_tokyo = "Токио",
+        desc_flame_users = "Огонёк 🔥 у ников Flame-игроков (TAB)",
         hdr_esp_settings = "Настройки ESP",
         hdr_interface_color = "Цвет интерфейса",
         hdr_custom_color = "Свой цвет",
@@ -119,6 +193,27 @@ local T = {
         desc_server_hop = "Змінити сервер",
         hdr_particle_settings = "Налаштування частинок",
         hdr_nimb_settings = "Налаштування Nimb",
+        hdr_watermark_settings = "Налаштування Watermark",
+        desc_watermark = "Верхній HUD · ПКМ - налаштування",
+        wm_show_ping = "Пінг",
+        wm_show_fps = "FPS",
+        wm_show_role = "Роль",
+        wm_show_player = "Нік",
+        desc_time = "Годинник · ПКМ - налаштування",
+        hdr_time_settings = "Налаштування часу",
+        time_region = "Регіон",
+        time_seconds = "Секунди",
+        time_date = "Дата",
+        region_moscow = "Москва",
+        region_kyiv = "Київ",
+        region_london = "Лондон",
+        region_berlin = "Берлін",
+        region_newyork = "Нью-Йорк",
+        region_losangeles = "Лос-Анджелес",
+        region_dubai = "Дубай",
+        region_beijing = "Пекін",
+        region_tokyo = "Токіо",
+        desc_flame_users = "Вогник 🔥 у ніків Flame-гравців (TAB)",
         hdr_esp_settings = "Налаштування ESP",
         hdr_interface_color = "Колір інтерфейсу",
         hdr_custom_color = "Свій колір",
@@ -178,6 +273,27 @@ local T = {
         desc_server_hop = "Server hop",
         hdr_particle_settings = "Particle settings",
         hdr_nimb_settings = "Nimb settings",
+        hdr_watermark_settings = "Watermark settings",
+        desc_watermark = "Top HUD · RMB - settings",
+        wm_show_ping = "Ping",
+        wm_show_fps = "FPS",
+        wm_show_role = "Role",
+        wm_show_player = "Nickname",
+        desc_time = "Clock · RMB - settings",
+        hdr_time_settings = "Time settings",
+        time_region = "Region",
+        time_seconds = "Seconds",
+        time_date = "Date",
+        region_moscow = "Moscow",
+        region_kyiv = "Kyiv",
+        region_london = "London",
+        region_berlin = "Berlin",
+        region_newyork = "New York",
+        region_losangeles = "Los Angeles",
+        region_dubai = "Dubai",
+        region_beijing = "Beijing",
+        region_tokyo = "Tokyo",
+        desc_flame_users = "🔥 tag on Flame players' names (TAB)",
         hdr_esp_settings = "ESP settings",
         hdr_interface_color = "Interface color",
         hdr_custom_color = "Custom color",
@@ -385,49 +501,78 @@ end
 -- РОЛИ: впиши ники в нужный список, чтобы игрок получил роль
 local DEVELOPER_NAMES = {"timoxa08012000", "Gemeeil_Goglr"}
 local TESTER_NAMES = {"Kiri95551"}
+local MEDIA_NAMES = {}
 
 local ROLE_COLORS = {
     Developer = {Color3.fromRGB(255, 120, 120), Color3.fromRGB(200, 30, 30)},
     Tester = {Color3.fromRGB(120, 180, 255), Color3.fromRGB(40, 80, 220)},
+    Media = {Color3.fromRGB(255, 80, 80), Color3.fromRGB(190, 25, 25)},
     User = {Color3.fromRGB(235, 235, 240), Color3.fromRGB(165, 165, 170)}
 }
 
-local function getPlayerRole(playerName)
-    local lowerName = string.lower(playerName or "")
-    for _, name in ipairs(DEVELOPER_NAMES) do
-        if string.lower(name) == lowerName then return "Developer" end
+local function getPlayerRole(player)
+    local candidates = {}
+    if typeof(player) == "Instance" then
+        candidates = {player.Name, player.DisplayName}
+    else
+        candidates = {player}
     end
-    for _, name in ipairs(TESTER_NAMES) do
-        if string.lower(name) == lowerName then return "Tester" end
+    for _, playerName in ipairs(candidates) do
+        local lowerName = string.lower(playerName or ""):gsub("%s+", "")
+        for _, name in ipairs(DEVELOPER_NAMES) do
+            if string.lower(name):gsub("%s+", "") == lowerName then return "Developer" end
+        end
+        for _, name in ipairs(TESTER_NAMES) do
+            if string.lower(name):gsub("%s+", "") == lowerName then return "Tester" end
+        end
+        for _, name in ipairs(MEDIA_NAMES) do
+            if string.lower(name):gsub("%s+", "") == lowerName then return "Media" end
+        end
     end
     return "User"
 end
 
---------------------------------------------------------------------------------
 -- SCREEN GUI
---------------------------------------------------------------------------------
 local screenGui = uiShared.screenGui
-if not screenGui then
-    screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "FlameVisualsClient"
-    screenGui.ResetOnSpawn = false
-    screenGui.IgnoreGuiInset = true
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    uiShared.screenGui = screenGui
+if screenGui and not screenGui.Parent then screenGui = nil end
+local function ensureScreenGui()
+    if not screenGui or not screenGui.Parent then
+        screenGui = Instance.new("ScreenGui")
+        screenGui.Name = "FlameVisualsClient"
+        screenGui.ResetOnSpawn = false
+        screenGui.IgnoreGuiInset = true
+        screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        uiShared.screenGui = screenGui
+        local okG, container = pcall(function()
+            if gethui then return gethui() end
+            return nil
+        end)
+        if okG and container then
+            screenGui.Parent = container
+        else
+            if syn and syn.protect_gui then
+                pcall(function() syn.protect_gui(screenGui) end)
+            end
+            pcall(function() screenGui.Parent = PlayerGui end)
+        end
+    end
+    return screenGui
+end
+ensureScreenGui()
+
+local function resetUI()
+    uiShared.gen = uiShared.gen + 1
+    for k in pairs(uiShared.hooks) do
+        local hook = uiShared.hooks[k]
+        uiShared.hooks[k] = nil
+        pcall(hook)
+    end
+    ensureScreenGui()
+    showDebug("GUI OK")
+    pcall(function() screenGui:ClearAllChildren() end)
 end
 
-if gethui then
-    screenGui.Parent = gethui()
-elseif syn and syn.protect_gui then
-    syn.protect_gui(screenGui)
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-else
-    screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
-
---------------------------------------------------------------------------------
 -- KEY SYSTEM
---------------------------------------------------------------------------------
 local function getTodayDate()
     local t = os.date("*t")
     return string.format("%04d-%02d-%02d", t.year, t.month, t.day)
@@ -504,7 +649,7 @@ local function createLanguageUI(onDone)
     langTitle.Text = t("lang_title")
     langTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     langTitle.TextSize = 18
-    langTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    langTitle.FontFace = uiFont(Enum.FontWeight.Bold)
 
     local langs = {
         {"ru", "🇷🇺  Русский"},
@@ -519,7 +664,7 @@ local function createLanguageUI(onDone)
         btn.Text = item[2]
         btn.TextColor3 = Color3.fromRGB(255, 255, 255)
         btn.TextSize = 15
-        btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        btn.FontFace = uiFont(Enum.FontWeight.SemiBold)
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
         btn.MouseButton1Click:Connect(function()
             LANG = item[1]
@@ -551,7 +696,7 @@ local function createKeyUI(onSuccess)
     keyTitle.Text = "🔥 FlameVisuals"
     keyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     keyTitle.TextSize = 22
-    keyTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    keyTitle.FontFace = uiFont(Enum.FontWeight.Bold)
 
     local keySubtitle = Instance.new("TextLabel", keyFrame)
     keySubtitle.Size = UDim2.new(1, -40, 0, 20)
@@ -560,7 +705,7 @@ local function createKeyUI(onSuccess)
     keySubtitle.Text = t("key_subtitle")
     keySubtitle.TextColor3 = Color3.fromRGB(160, 160, 175)
     keySubtitle.TextSize = 14
-    keySubtitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    keySubtitle.FontFace = uiFont(Enum.FontWeight.SemiBold)
 
     local keyInput = Instance.new("TextBox", keyFrame)
     keyInput.Size = UDim2.new(1, -40, 0, 38)
@@ -572,7 +717,7 @@ local function createKeyUI(onSuccess)
     keyInput.Text = ""
     keyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
     keyInput.TextSize = 15
-    keyInput.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    keyInput.FontFace = uiFont(Enum.FontWeight.SemiBold)
     keyInput.ClearTextOnFocus = false
     Instance.new("UICorner", keyInput).CornerRadius = UDim.new(0, 8)
     Instance.new("UIPadding", keyInput).PaddingLeft = UDim.new(0, 12)
@@ -584,7 +729,7 @@ local function createKeyUI(onSuccess)
     activateBtn.Text = t("key_activate")
     activateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     activateBtn.TextSize = 15
-    activateBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    activateBtn.FontFace = uiFont(Enum.FontWeight.Bold)
     Instance.new("UICorner", activateBtn).CornerRadius = UDim.new(0, 8)
 
     local getKeyBtn = Instance.new("TextButton", keyFrame)
@@ -594,7 +739,7 @@ local function createKeyUI(onSuccess)
     getKeyBtn.Text = t("key_get")
     getKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     getKeyBtn.TextSize = 15
-    getKeyBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    getKeyBtn.FontFace = uiFont(Enum.FontWeight.Bold)
     Instance.new("UICorner", getKeyBtn).CornerRadius = UDim.new(0, 8)
 
     local statusLabel = Instance.new("TextLabel", keyFrame)
@@ -604,7 +749,7 @@ local function createKeyUI(onSuccess)
     statusLabel.Text = ""
     statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
     statusLabel.TextSize = 13
-    statusLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    statusLabel.FontFace = uiFont(Enum.FontWeight.SemiBold)
 
     getKeyBtn.MouseButton1Click:Connect(function()
         statusLabel.TextColor3 = Color3.fromRGB(120, 220, 120)
@@ -671,11 +816,10 @@ local function createKeyUI(onSuccess)
     end)
 end
 
---------------------------------------------------------------------------------
 -- MAIN SCRIPT
---------------------------------------------------------------------------------
 local function startMainScript()
     resetUI()
+    showDebug("MENU")
     local gen = uiShared.gen
     print("[FlameVisuals] Создание меню...")
     local function makeDraggable(frame)
@@ -712,6 +856,7 @@ local function startMainScript()
         Color = Color3.fromRGB(255, 215, 0)  -- по умолчанию золотой
     }
     local InterfaceConfig = { AccentColor = Color3.fromRGB(168, 85, 247) }
+    local WatermarkConfig = { ShowPlayer = true, ShowPing = true, ShowFPS = true, ShowRole = true }
 
     local function shadeColor(color, factor)
         if factor >= 0 then
@@ -733,9 +878,7 @@ local function startMainScript()
         return (color.R * 0.299 + color.G * 0.587 + color.B * 0.114) > 0.6
     end
 
-    --------------------------------------------------------------------------------
     -- ХРАНИЛИЩЕ КОНФИГОВ В ПАМЯТИ
-    --------------------------------------------------------------------------------
     local activeParticles = {}
     local rebuildNimb = nil
 
@@ -768,30 +911,38 @@ local function startMainScript()
         return names
     end
 
-    --------------------------------------------------------------------------------
     -- TARGET HUD
-    --------------------------------------------------------------------------------
     local targetHudFrame = Instance.new("Frame")
     targetHudFrame.Name = "TargetHUD"
     targetHudFrame.Size = UDim2.new(0, 240, 0, 75)
     targetHudFrame.Position = UDim2.new(0.5, -120, 0.7, 0)
-    targetHudFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
+    targetHudFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    targetHudFrame.BackgroundTransparency = 0.03
     targetHudFrame.BorderSizePixel = 0
     targetHudFrame.Visible = false
     targetHudFrame.Parent = screenGui
     makeDraggable(targetHudFrame)
     Instance.new("UICorner", targetHudFrame).CornerRadius = UDim.new(0, 12)
 
+    local thGrad = Instance.new("UIGradient", targetHudFrame)
+    thGrad.Rotation = 90
+    thGrad.Color = ColorSequence.new(Color3.fromRGB(24, 24, 28), Color3.fromRGB(0, 0, 0))
+
     local thStroke = Instance.new("UIStroke", targetHudFrame)
     thStroke.Color = InterfaceConfig.AccentColor
     thStroke.Thickness = 1.5
+    thStroke.Transparency = 0.15
 
     local avatarImg = Instance.new("ImageLabel", targetHudFrame)
     avatarImg.Size = UDim2.new(0, 42, 0, 42)
     avatarImg.Position = UDim2.new(0, 12, 0, 10)
-    avatarImg.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+    avatarImg.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
     avatarImg.BorderSizePixel = 0
     Instance.new("UICorner", avatarImg).CornerRadius = UDim.new(0, 8)
+    local avatarStroke = Instance.new("UIStroke", avatarImg)
+    avatarStroke.Color = InterfaceConfig.AccentColor
+    avatarStroke.Thickness = 1
+    avatarStroke.Transparency = 0.4
 
     local targetNameLabel = Instance.new("TextLabel", targetHudFrame)
     targetNameLabel.Size = UDim2.new(1, -70, 0, 22)
@@ -800,7 +951,7 @@ local function startMainScript()
     targetNameLabel.Text = t("hud_player")
     targetNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     targetNameLabel.TextSize = 16
-    targetNameLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    targetNameLabel.FontFace = uiFont(Enum.FontWeight.Bold)
     targetNameLabel.TextXAlignment = Enum.TextXAlignment.Left
 
     local targetHpLabel = Instance.new("TextLabel", targetHudFrame)
@@ -810,13 +961,13 @@ local function startMainScript()
     targetHpLabel.Text = "HP / 100.0"
     targetHpLabel.TextColor3 = Color3.fromRGB(170, 170, 185)
     targetHpLabel.TextSize = 13
-    targetHpLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    targetHpLabel.FontFace = uiFont(Enum.FontWeight.SemiBold)
     targetHpLabel.TextXAlignment = Enum.TextXAlignment.Left
 
     local healthBarBg = Instance.new("Frame", targetHudFrame)
     healthBarBg.Size = UDim2.new(1, -24, 0, 8)
     healthBarBg.Position = UDim2.new(0, 12, 0, 58)
-    healthBarBg.BackgroundColor3 = Color3.fromRGB(25, 22, 35)
+    healthBarBg.BackgroundColor3 = Color3.fromRGB(16, 14, 24)
     healthBarBg.BorderSizePixel = 0
     Instance.new("UICorner", healthBarBg).CornerRadius = UDim.new(1, 0)
 
@@ -826,26 +977,303 @@ local function startMainScript()
     healthBarFill.BorderSizePixel = 0
     Instance.new("UICorner", healthBarFill).CornerRadius = UDim.new(1, 0)
 
-    --------------------------------------------------------------------------------
+    local function addTextOutline(label)
+        local st = Instance.new("UIStroke", label)
+        st.Color = Color3.fromRGB(0, 0, 0)
+        st.Thickness = 1
+        st.Transparency = 0.35
+    end
+    addTextOutline(targetNameLabel)
+    addTextOutline(targetHpLabel)
+
+    -- TIME (часы по регионам)
+    local TimeConfig = { Enabled = false, Offset = 3, ShowSeconds = true, ShowDate = true }
+    local TIME_REGIONS = {
+        { name = t("region_moscow"), offset = 3 },
+        { name = t("region_kyiv"), offset = 2, dst = "eu" },
+        { name = t("region_london"), offset = 0, dst = "eu" },
+        { name = t("region_berlin"), offset = 1, dst = "eu" },
+        { name = t("region_newyork"), offset = -5, dst = "us" },
+        { name = t("region_losangeles"), offset = -8, dst = "us" },
+        { name = t("region_dubai"), offset = 4 },
+        { name = t("region_beijing"), offset = 8 },
+        { name = t("region_tokyo"), offset = 9 }
+    }
+
+    local function dow(y, m, d)
+        local t = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4}
+        if m < 3 then y = y - 1 end
+        return (y + math.floor(y / 4) - math.floor(y / 100) + math.floor(y / 400) + t[m] + d) % 7
+    end
+
+    local function lastSunday(y, m)
+        local day = 31
+        while dow(y, m, day) ~= 0 do day = day - 1 end
+        return day
+    end
+
+    local function firstSunday(y, m)
+        for d = 1, 7 do
+            if dow(y, m, d) == 0 then return d end
+        end
+        return 1
+    end
+
+    local function isDstActive(utc, dstType)
+        if not dstType then return false end
+        local y, m, day, h = utc.year, utc.month, utc.day, utc.hour
+        if dstType == "eu" then
+            if m > 3 and m < 10 then return true end
+            if m == 3 then
+                local ls = lastSunday(y, 3)
+                return day > ls or (day == ls and h >= 1)
+            end
+            if m == 10 then
+                local ls = lastSunday(y, 10)
+                return day < ls or (day == ls and h < 1)
+            end
+        elseif dstType == "us" then
+            if m > 3 and m < 11 then return true end
+            if m == 3 then
+                local ss = firstSunday(y, 3) + 7
+                return day > ss or (day == ss and h >= 2)
+            end
+            if m == 11 then
+                local fs = firstSunday(y, 11)
+                return day < fs or (day == fs and h < 2)
+            end
+        end
+        return false
+    end
+
+    local function timeRegionName(offset)
+        for _, r in ipairs(TIME_REGIONS) do
+            if r.offset == offset then return r.name end
+        end
+        return "UTC" .. (offset >= 0 and "+" or "") .. tostring(offset)
+    end
+
+    local timeFrame = Instance.new("Frame")
+    timeFrame.Name = "TimeHUD"
+    timeFrame.AnchorPoint = Vector2.new(1, 0)
+    timeFrame.Position = UDim2.new(1, -18, 0, 18)
+    timeFrame.Size = UDim2.new(0, 0, 0, 32)
+    timeFrame.AutomaticSize = Enum.AutomaticSize.X
+    timeFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    timeFrame.BackgroundTransparency = 0.03
+    timeFrame.BorderSizePixel = 0
+    timeFrame.Visible = false
+    timeFrame.Parent = screenGui
+    makeDraggable(timeFrame)
+    Instance.new("UICorner", timeFrame).CornerRadius = UDim.new(0, 16)
+
+    local timeGrad = Instance.new("UIGradient", timeFrame)
+    timeGrad.Rotation = 90
+    timeGrad.Color = ColorSequence.new(Color3.fromRGB(22, 22, 26), Color3.fromRGB(0, 0, 0))
+
+    local timeStroke = Instance.new("UIStroke", timeFrame)
+    timeStroke.Color = InterfaceConfig.AccentColor
+    timeStroke.Thickness = 1
+    timeStroke.Transparency = 0.3
+
+    local timeLayout = Instance.new("UIListLayout", timeFrame)
+    timeLayout.FillDirection = Enum.FillDirection.Horizontal
+    timeLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+    timeLayout.Padding = UDim.new(0, 8)
+    timeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local timePadding = Instance.new("UIPadding", timeFrame)
+    timePadding.PaddingLeft = UDim.new(0, 12)
+    timePadding.PaddingRight = UDim.new(0, 14)
+
+    local timeIcon = Instance.new("TextLabel", timeFrame)
+    timeIcon.LayoutOrder = 1
+    timeIcon.Size = UDim2.new(0, 16, 0, 16)
+    timeIcon.BackgroundTransparency = 1
+    timeIcon.Text = "🕒"
+    timeIcon.TextSize = 14
+
+    local timeLabel = Instance.new("TextLabel", timeFrame)
+    timeLabel.LayoutOrder = 2
+    timeLabel.AutomaticSize = Enum.AutomaticSize.X
+    timeLabel.Size = UDim2.new(0, 0, 1, 0)
+    timeLabel.BackgroundTransparency = 1
+    timeLabel.Text = "--:--"
+    timeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    timeLabel.TextSize = 14
+    timeLabel.FontFace = uiFont(Enum.FontWeight.Bold)
+
+    local timeDateLabel = Instance.new("TextLabel", timeFrame)
+    timeDateLabel.LayoutOrder = 3
+    timeDateLabel.AutomaticSize = Enum.AutomaticSize.X
+    timeDateLabel.Size = UDim2.new(0, 0, 1, 0)
+    timeDateLabel.BackgroundTransparency = 1
+    timeDateLabel.Text = ""
+    timeDateLabel.Visible = false
+    timeDateLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
+    timeDateLabel.TextSize = 14
+    timeDateLabel.FontFace = uiFont(Enum.FontWeight.SemiBold)
+
+    local timeRegionLabel = Instance.new("TextLabel", timeFrame)
+    timeRegionLabel.LayoutOrder = 4
+    timeRegionLabel.AutomaticSize = Enum.AutomaticSize.X
+    timeRegionLabel.Size = UDim2.new(0, 0, 1, 0)
+    timeRegionLabel.BackgroundTransparency = 1
+    timeRegionLabel.Text = ""
+    timeRegionLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
+    timeRegionLabel.TextSize = 14
+    timeRegionLabel.FontFace = uiFont(Enum.FontWeight.SemiBold)
+
+    addTextOutline(timeIcon)
+    addTextOutline(timeLabel)
+    addTextOutline(timeDateLabel)
+    addTextOutline(timeRegionLabel)
+
+    -- FLAME USERS (огонёк у ников в TAB / leaderboard)
+    local FlameUsersConfig = { Enabled = true }
+    local flameUserSet = {}
+
+    local function isFlameUser(plr)
+        if plr == LocalPlayer then return true end
+        if flameUserSet[string.lower(plr.Name)] or flameUserSet[string.lower(plr.DisplayName)] then return true end
+        return getPlayerRole(plr) ~= "User"
+    end
+
+    local function trimStr(s)
+        return (s:gsub("^%s*(.-)%s*$", "%1"))
+    end
+
+    local function getFlameScanRoot()
+        local ok, root = pcall(function()
+            local cg = game:GetService("CoreGui")
+            local pl = cg:FindFirstChild("PlayerList")
+            if pl then
+                local scroll = pl:FindFirstChild("PlayerScrollFrame")
+                if scroll then return scroll end
+                return pl
+            end
+            local rg = cg:FindFirstChild("RobloxGui")
+            if rg then
+                local pl2 = rg:FindFirstChild("PlayerList")
+                if pl2 then
+                    local scroll2 = pl2:FindFirstChild("PlayerScrollFrame")
+                    if scroll2 then return scroll2 end
+                    return pl2
+                end
+            end
+            return cg
+        end)
+        if ok and root then return root end
+        return nil
+    end
+
+    local function updateLeaderboardFlames()
+        local root = getFlameScanRoot()
+        if not root then return end
+        local players = Players:GetPlayers()
+        for _, label in ipairs(root:GetDescendants()) do
+            if label:IsA("TextLabel") then
+                local txt = label.Text
+                if txt and #txt > 0 then
+                    local clean = trimStr(txt)
+                    if #clean > 0 then
+                        if label:GetAttribute("FlameTagged") then
+                            -- игра могла сбросить текст — возвращаем огонёк
+                            if string.sub(clean, 1, 4) ~= "🔥" then
+                                for _, plr in ipairs(players) do
+                                    if isFlameUser(plr) and (clean == plr.Name or clean == plr.DisplayName) then
+                                        label.Text = "🔥 " .. clean
+                                        break
+                                    end
+                                end
+                            end
+                        else
+                            for _, plr in ipairs(players) do
+                                if isFlameUser(plr) and (clean == plr.Name or clean == plr.DisplayName) then
+                                    label:SetAttribute("FlameTagged", true)
+                                    label.Text = "🔥 " .. clean
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local function clearLeaderboardFlames()
+        local root = getFlameScanRoot()
+        if not root then return end
+        for _, label in ipairs(root:GetDescendants()) do
+            if label:IsA("TextLabel") and label:GetAttribute("FlameTagged") then
+                label:SetAttribute("FlameTagged", nil)
+                label.Text = trimStr(label.Text:gsub("^🔥%s*", ""))
+            end
+        end
+    end
+
+    task.delay(4, function()
+        if gen ~= uiShared.gen then return end
+        local root = getFlameScanRoot()
+        if root then
+            showDebug("FlameUsers: скан по " .. root.Name .. " OK")
+        else
+            showDebug("FlameUsers: CoreGui недоступен")
+        end
+    end)
+
+    task.spawn(function()
+        while gen == uiShared.gen do
+            if FlameUsersConfig.Enabled then
+                pcall(function()
+                    local body = httpGet(API_BASE .. "/online.php?user=" .. HttpService:UrlEncode(LocalPlayer.Name))
+                    if body then
+                        local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
+                        if ok and type(data) == "table" and type(data.users) == "table" then
+                            flameUserSet = {}
+                            for _, n in ipairs(data.users) do
+                                flameUserSet[string.lower(tostring(n))] = true
+                            end
+                        end
+                    end
+                end)
+            end
+            task.wait(20)
+        end
+    end)
+
+    task.spawn(function()
+        while gen == uiShared.gen do
+            if FlameUsersConfig.Enabled then
+                pcall(updateLeaderboardFlames)
+            end
+            task.wait(1.5)
+        end
+    end)
+
     -- WATERMARK
-    --------------------------------------------------------------------------------
     local watermarkFrame = Instance.new("Frame")
     watermarkFrame.Name = "WatermarkFrame"
     watermarkFrame.Position = UDim2.new(0, 18, 0, 18)
     watermarkFrame.Size = UDim2.new(0, 0, 0, 32)
     watermarkFrame.AutomaticSize = Enum.AutomaticSize.X
-    watermarkFrame.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-    watermarkFrame.BackgroundTransparency = 0.15
+    watermarkFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    watermarkFrame.BackgroundTransparency = 0.03
     watermarkFrame.BorderSizePixel = 0
     watermarkFrame.Visible = true
     watermarkFrame.Parent = screenGui
     makeDraggable(watermarkFrame)
     Instance.new("UICorner", watermarkFrame).CornerRadius = UDim.new(0, 16)
 
+    local wmGrad = Instance.new("UIGradient", watermarkFrame)
+    wmGrad.Rotation = 90
+    wmGrad.Color = ColorSequence.new(Color3.fromRGB(22, 22, 26), Color3.fromRGB(0, 0, 0))
+
     local wmStroke = Instance.new("UIStroke", watermarkFrame)
     wmStroke.Color = InterfaceConfig.AccentColor
     wmStroke.Thickness = 1
-    wmStroke.Transparency = 0.4
+    wmStroke.Transparency = 0.3
 
     local wmLayout = Instance.new("UIListLayout", watermarkFrame)
     wmLayout.FillDirection = Enum.FillDirection.Horizontal
@@ -869,9 +1297,9 @@ local function startMainScript()
     wmBrand.Text = "FlameVisuals"
     wmBrand.TextColor3 = Color3.fromRGB(255, 255, 255)
     wmBrand.TextSize = 14
-    wmBrand.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    wmBrand.FontFace = uiFont(Enum.FontWeight.Bold)
 
-    local roleName = getPlayerRole(LocalPlayer.Name)
+    local roleName = getPlayerRole(LocalPlayer)
     local roleColors = ROLE_COLORS[roleName]
 
     local wmRole = Instance.new("TextLabel", watermarkFrame)
@@ -881,7 +1309,7 @@ local function startMainScript()
     wmRole.Text = roleName
     wmRole.TextColor3 = Color3.fromRGB(255, 255, 255)
     wmRole.TextSize = 14
-    wmRole.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    wmRole.FontFace = uiFont(Enum.FontWeight.Bold)
     local wmRoleGrad = Instance.new("UIGradient", wmRole)
     wmRoleGrad.Rotation = 90
     wmRoleGrad.Color = ColorSequence.new(roleColors[1], roleColors[2])
@@ -892,7 +1320,32 @@ local function startMainScript()
     wmStats.BackgroundTransparency = 1
     wmStats.TextColor3 = Color3.fromRGB(160, 160, 175)
     wmStats.TextSize = 14
-    wmStats.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    wmStats.FontFace = uiFont(Enum.FontWeight.SemiBold)
+
+    addTextOutline(wmIcon)
+    addTextOutline(wmBrand)
+    addTextOutline(wmRole)
+    addTextOutline(wmStats)
+
+    local lastPingVal, lastFpsVal = 0, 0
+    local function updateWatermarkText()
+        local parts = {}
+        if WatermarkConfig.ShowPlayer then parts[#parts + 1] = LocalPlayer.Name end
+        if WatermarkConfig.ShowPing then parts[#parts + 1] = string.format("%d ms", lastPingVal) end
+        if WatermarkConfig.ShowFPS then parts[#parts + 1] = string.format("%d FPS", lastFpsVal) end
+        if #parts == 0 then
+            wmStats.Visible = false
+            wmStats.Text = ""
+        else
+            wmStats.Visible = true
+            wmStats.Text = "●  " .. table.concat(parts, "  ●  ")
+        end
+    end
+
+    local function applyWatermarkSettings()
+        wmRole.Visible = WatermarkConfig.ShowRole
+        updateWatermarkText()
+    end
 
     local lastUpdate, frameCount, fps = tick(), 0, 0
     RunService.RenderStepped:Connect(function()
@@ -905,13 +1358,29 @@ local function startMainScript()
             lastUpdate = now
             local ping = 0
             pcall(function() ping = math.floor(Stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
-            wmStats.Text = string.format("●  %s  ●  %d ms  ●  %d FPS", LocalPlayer.Name, ping, fps)
+            lastPingVal, lastFpsVal = ping, fps
+            updateWatermarkText()
+            if TimeConfig.Enabled then
+                local nowUtc = os.time()
+                local dstShift = 0
+                for _, r in ipairs(TIME_REGIONS) do
+                    if r.offset == TimeConfig.Offset and r.dst and isDstActive(os.date("!*t", nowUtc), r.dst) then
+                        dstShift = 1
+                        break
+                    end
+                end
+                local lt = os.date("!*t", nowUtc + (TimeConfig.Offset + dstShift) * 3600)
+                local timeText = string.format("%02d:%02d", lt.hour, lt.min)
+                if TimeConfig.ShowSeconds then timeText = timeText .. string.format(":%02d", lt.sec) end
+                timeLabel.Text = timeText
+                timeDateLabel.Text = string.format("%02d.%02d.%04d", lt.day, lt.month, lt.year)
+                timeDateLabel.Visible = TimeConfig.ShowDate
+                timeRegionLabel.Text = "· " .. timeRegionName(TimeConfig.Offset)
+            end
         end
     end)
 
-    --------------------------------------------------------------------------------
     -- MAIN MENU
-    --------------------------------------------------------------------------------
     local mainGui = Instance.new("Frame")
     mainGui.Name = "MainMenu"
     mainGui.Size = UDim2.new(0, 750, 0, 480)
@@ -963,7 +1432,7 @@ local function startMainScript()
     userNameLabel.Text = LocalPlayer.Name
     userNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     userNameLabel.TextSize = 14
-    userNameLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    userNameLabel.FontFace = uiFont(Enum.FontWeight.Bold)
     userNameLabel.TextXAlignment = Enum.TextXAlignment.Left
     userNameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
@@ -974,7 +1443,7 @@ local function startMainScript()
     roleLabel.Text = roleName
     roleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     roleLabel.TextSize = 13
-    roleLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+    roleLabel.FontFace = uiFont(Enum.FontWeight.SemiBold)
     roleLabel.TextXAlignment = Enum.TextXAlignment.Left
     local roleLabelGrad = Instance.new("UIGradient", roleLabel)
     roleLabelGrad.Rotation = 90
@@ -998,7 +1467,7 @@ local function startMainScript()
     logoText.Text = "FlameVisuals"
     logoText.TextColor3 = Color3.fromRGB(255, 255, 255)
     logoText.TextSize = 17
-    logoText.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    logoText.FontFace = uiFont(Enum.FontWeight.Bold)
     logoText.TextXAlignment = Enum.TextXAlignment.Left
 
     local contentArea = Instance.new("Frame", mainGui)
@@ -1012,7 +1481,7 @@ local function startMainScript()
     headerText.Text = "Visuals"
     headerText.TextColor3 = Color3.fromRGB(255, 255, 255)
     headerText.TextSize = 20
-    headerText.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    headerText.FontFace = uiFont(Enum.FontWeight.Bold)
     headerText.TextXAlignment = Enum.TextXAlignment.Left
 
     local tabs, tabButtons = {}, {}
@@ -1080,7 +1549,7 @@ local function startMainScript()
         btnText.Text = t("tab_" .. name)
         btnText.TextColor3 = Color3.fromRGB(255, 255, 255)
         btnText.TextSize = 14
-        btnText.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        btnText.FontFace = uiFont(Enum.FontWeight.SemiBold)
         btnText.TextXAlignment = Enum.TextXAlignment.Left
         Instance.new("UIPadding", btnText).PaddingLeft = UDim.new(0, 12)
         tabButtons[name] = btn
@@ -1088,9 +1557,7 @@ local function startMainScript()
     end
     switchTab("Visuals")
 
-    --------------------------------------------------------------------------------
     -- SETTINGS MODAL
-    --------------------------------------------------------------------------------
     local settingsModal = Instance.new("Frame")
     settingsModal.Name = "SettingsModal"
     settingsModal.Size = UDim2.new(0, 270, 0, 0)
@@ -1154,7 +1621,7 @@ local function startMainScript()
         InterfaceConfig.AccentColor = newColor
         wmStroke.Color = newColor
         thStroke.Color = newColor
-        healthBarFill.BackgroundColor3 = newColor
+        timeStroke.Color = newColor
         for _, btn in pairs(tabButtons) do
             if btn.BackgroundTransparency == 0 then
                 btn.BackgroundColor3 = newColor
@@ -1198,7 +1665,7 @@ local function startMainScript()
         header.Text = "Цвет интерфейса"
         header.TextColor3 = Color3.fromRGB(140, 140, 160)
         header.TextSize = 12
-        header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        header.FontFace = uiFont(Enum.FontWeight.Bold)
         header.ZIndex = 101
 
         local colors = {
@@ -1233,7 +1700,7 @@ local function startMainScript()
             btn.Text = item[1]
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
             btn.TextSize = 11
-            btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            btn.FontFace = uiFont(Enum.FontWeight.SemiBold)
             btn.ZIndex = 101
             Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
             local st = Instance.new("UIStroke", btn)
@@ -1265,7 +1732,7 @@ local function startMainScript()
         customHeader.Text = "Свой цвет"
         customHeader.TextColor3 = Color3.fromRGB(200, 200, 210)
         customHeader.TextSize = 13
-        customHeader.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        customHeader.FontFace = uiFont(Enum.FontWeight.Bold)
 
         preview = Instance.new("Frame", settingsModal)
         preview.Size = UDim2.new(0, 54, 0, 54)
@@ -1296,7 +1763,7 @@ local function startMainScript()
             chLabel.Text = ch[1]
             chLabel.TextColor3 = ch[3]
             chLabel.TextSize = 14
-            chLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+            chLabel.FontFace = uiFont(Enum.FontWeight.Bold)
 
             local minus = Instance.new("TextButton", row)
             minus.Size = UDim2.new(0, 30, 0, 30)
@@ -1326,7 +1793,7 @@ local function startMainScript()
             valBox.Text = tostring(idx == 1 and r or idx == 2 and g or b)
             valBox.TextColor3 = Color3.fromRGB(255, 255, 255)
             valBox.TextSize = 14
-            valBox.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            valBox.FontFace = uiFont(Enum.FontWeight.SemiBold)
             pcall(function()
                     valBox.InputType = Enum.TextInputType.Number
                 end)
@@ -1431,7 +1898,7 @@ local function startMainScript()
             header.Text = t("hdr_interface_color")
             header.TextColor3 = Color3.fromRGB(140, 140, 160)
             header.TextSize = 12
-            header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+            header.FontFace = uiFont(Enum.FontWeight.Bold)
             header.ZIndex = 101
 
             local colors = {
@@ -1466,7 +1933,7 @@ local function startMainScript()
                 btn.Text = item[1]
                 btn.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btn.TextSize = 11
-                btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                btn.FontFace = uiFont(Enum.FontWeight.SemiBold)
                 btn.ZIndex = 101
                 Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
                 local st = Instance.new("UIStroke", btn)
@@ -1498,7 +1965,7 @@ local function startMainScript()
             customHeader.Text = t("hdr_custom_color")
             customHeader.TextColor3 = Color3.fromRGB(200, 200, 210)
             customHeader.TextSize = 13
-            customHeader.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+            customHeader.FontFace = uiFont(Enum.FontWeight.Bold)
 
             preview = Instance.new("Frame", modal)
             preview.Size = UDim2.new(0, 54, 0, 54)
@@ -1530,7 +1997,7 @@ local function startMainScript()
                     chLabel.Text = ch[1]
                     chLabel.TextColor3 = ch[3]
                     chLabel.TextSize = 14
-                    chLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+                    chLabel.FontFace = uiFont(Enum.FontWeight.Bold)
 
                     local minus = Instance.new("TextButton", row)
                     minus.Size = UDim2.new(0, 30, 0, 30)
@@ -1560,7 +2027,7 @@ local function startMainScript()
                     valBox.Text = tostring(idx == 1 and r or idx == 2 and g or b)
                     valBox.TextColor3 = Color3.fromRGB(255, 255, 255)
                     valBox.TextSize = 14
-                    valBox.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                    valBox.FontFace = uiFont(Enum.FontWeight.SemiBold)
                     pcall(function()
                         valBox.InputType = Enum.TextInputType.Number
                     end)
@@ -1649,9 +2116,7 @@ local function startMainScript()
         end
     end)
 
-    --------------------------------------------------------------------------------
     -- MODULE CARDS
-    --------------------------------------------------------------------------------
     local cardReferences = {}
 
     local function createModuleCard(parentTab, title, description, defaultValue, onToggle, onRightClick)
@@ -1669,7 +2134,7 @@ local function startMainScript()
         cardTitle.Text = title
         cardTitle.TextColor3 = Color3.fromRGB(240, 240, 245)
         cardTitle.TextSize = 15
-        cardTitle.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        cardTitle.FontFace = uiFont(Enum.FontWeight.Bold)
         cardTitle.TextXAlignment = Enum.TextXAlignment.Left
 
         local cardDesc = Instance.new("TextLabel", card)
@@ -1730,7 +2195,7 @@ local function startMainScript()
         label.Text = title
         label.TextColor3 = Color3.fromRGB(200, 200, 210)
         label.TextSize = 13
-        label.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        label.FontFace = uiFont(Enum.FontWeight.SemiBold)
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.ZIndex = 201
         label.Parent = container
@@ -1742,7 +2207,7 @@ local function startMainScript()
         mainBtn.Text = "  " .. currentValue
         mainBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         mainBtn.TextSize = 13
-        mainBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        mainBtn.FontFace = uiFont(Enum.FontWeight.SemiBold)
         mainBtn.TextXAlignment = Enum.TextXAlignment.Left
         mainBtn.AutoButtonColor = false
         mainBtn.ZIndex = 202
@@ -1803,7 +2268,7 @@ local function startMainScript()
             optBtn.Text = "  " .. opt
             optBtn.TextColor3 = Color3.fromRGB(220, 220, 230)
             optBtn.TextSize = 13
-            optBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            optBtn.FontFace = uiFont(Enum.FontWeight.SemiBold)
             optBtn.TextXAlignment = Enum.TextXAlignment.Left
             optBtn.AutoButtonColor = false
             optBtn.ZIndex = 501
@@ -1873,9 +2338,7 @@ local function startMainScript()
         end)
     end
 
-    --------------------------------------------------------------------------------
     -- VISUALS
-    --------------------------------------------------------------------------------
     -- Глобальный список активных частиц
     cardReferences.WorldParticles = createModuleCard(tabs["Visuals"], "World Particles", t("desc_particle_settings"), ParticleConfig.Enabled, function(v)
         ParticleConfig.Enabled = v
@@ -1892,7 +2355,7 @@ local function startMainScript()
         header.Text = t("hdr_particle_settings")
         header.TextColor3 = Color3.fromRGB(140, 140, 160)
         header.TextSize = 12
-        header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        header.FontFace = uiFont(Enum.FontWeight.Bold)
         header.ZIndex = 101
 
         local typeDisplay = ParticleConfig.Type == "All" and t("opt_all")
@@ -1924,7 +2387,7 @@ local function startMainScript()
             btn.Text = item[1]
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
             btn.TextSize = 14
-            btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            btn.FontFace = uiFont(Enum.FontWeight.SemiBold)
             btn.ZIndex = 101
             Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
             local st = Instance.new("UIStroke", btn)
@@ -1965,7 +2428,7 @@ local function startMainScript()
         header.Text = t("hdr_nimb_settings")
         header.TextColor3 = Color3.fromRGB(140, 140, 160)
         header.TextSize = 12
-        header.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        header.FontFace = uiFont(Enum.FontWeight.Bold)
         header.ZIndex = 101
 
         local colors = {
@@ -1986,7 +2449,7 @@ local function startMainScript()
             btn.Text = item[1]
             btn.TextColor3 = Color3.fromRGB(255, 255, 255)
             btn.TextSize = 14
-            btn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+            btn.FontFace = uiFont(Enum.FontWeight.SemiBold)
             btn.ZIndex = 101
             Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
             local st = Instance.new("UIStroke", btn)
@@ -2023,7 +2486,7 @@ local function startMainScript()
         heightLabel.Text = t("lbl_nimb_height")
         heightLabel.TextColor3 = Color3.fromRGB(160, 160, 175)
         heightLabel.TextSize = 13
-        heightLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        heightLabel.FontFace = uiFont(Enum.FontWeight.SemiBold)
         heightLabel.TextXAlignment = Enum.TextXAlignment.Left
         local heightValue = Instance.new("TextLabel", heightRow)
         heightValue.Size = UDim2.new(0, 54, 1, 0)
@@ -2032,7 +2495,7 @@ local function startMainScript()
         heightValue.Text = string.format("%.1f", NimbConfig.Height)
         heightValue.TextColor3 = Color3.fromRGB(255, 255, 255)
         heightValue.TextSize = 14
-        heightValue.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        heightValue.FontFace = uiFont(Enum.FontWeight.Bold)
         local heightUp = Instance.new("TextButton", heightRow)
         heightUp.Size = UDim2.new(0, 28, 0, 28)
         heightUp.Position = UDim2.new(1, -40, 0, 3)
@@ -2041,7 +2504,7 @@ local function startMainScript()
         heightUp.Text = "▲"
         heightUp.TextColor3 = Color3.fromRGB(255, 255, 255)
         heightUp.TextSize = 12
-        heightUp.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        heightUp.FontFace = uiFont(Enum.FontWeight.Bold)
         Instance.new("UICorner", heightUp).CornerRadius = UDim.new(0, 8)
         local heightDown = Instance.new("TextButton", heightRow)
         heightDown.Size = UDim2.new(0, 28, 0, 28)
@@ -2051,7 +2514,7 @@ local function startMainScript()
         heightDown.Text = "▼"
         heightDown.TextColor3 = Color3.fromRGB(255, 255, 255)
         heightDown.TextSize = 12
-        heightDown.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        heightDown.FontFace = uiFont(Enum.FontWeight.Bold)
         Instance.new("UICorner", heightDown).CornerRadius = UDim.new(0, 8)
         local function updateHeightLabel()
             heightValue.Text = string.format("%.1f", NimbConfig.Height)
@@ -2069,10 +2532,144 @@ local function startMainScript()
     end)
 
     -- HUD
-    cardReferences.Watermark = createModuleCard(tabs["HUD"], "Watermark", t("desc_top_hud"), true, function(v) watermarkFrame.Visible = v end, nil)
+    cardReferences.Watermark = createModuleCard(tabs["HUD"], "Watermark", t("desc_watermark"), true, function(v) watermarkFrame.Visible = v end, function()
+        for _, child in ipairs(settingsModal:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UICorner") or child:IsA("UIStroke") or child:IsA("UIPadding")) then
+                child:Destroy()
+            end
+        end
+
+        local header = Instance.new("TextLabel", settingsModal)
+        header.Size = UDim2.new(1, 0, 0, 18)
+        header.BackgroundTransparency = 1
+        header.Text = t("hdr_watermark_settings")
+        header.TextColor3 = Color3.fromRGB(140, 140, 160)
+        header.TextSize = 12
+        header.FontFace = uiFont(Enum.FontWeight.Bold)
+        header.ZIndex = 101
+
+        local function addToggle(name, current, callback)
+            local row = Instance.new("Frame", settingsModal)
+            row.Size = UDim2.new(1, 0, 0, 28)
+            row.BackgroundTransparency = 1
+            row.ZIndex = 101
+
+            local label = Instance.new("TextLabel", row)
+            label.Size = UDim2.new(1, -50, 1, 0)
+            label.BackgroundTransparency = 1
+            label.Text = name
+            label.TextColor3 = Color3.fromRGB(220, 220, 230)
+            label.TextSize = 13
+            label.FontFace = uiFont(Enum.FontWeight.SemiBold)
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.ZIndex = 101
+
+            local btn = Instance.new("TextButton", row)
+            btn.Size = UDim2.new(0, 38, 0, 20)
+            btn.Position = UDim2.new(1, -38, 0.5, -10)
+            btn.BackgroundColor3 = current and InterfaceConfig.AccentColor or Color3.fromRGB(35, 35, 45)
+            btn.Text = ""
+            btn.ZIndex = 101
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+
+            local circle = Instance.new("Frame", btn)
+            circle.Size = UDim2.new(0, 14, 0, 14)
+            circle.Position = current and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+            circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            circle.ZIndex = 102
+            Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+            local state = current
+            btn.MouseButton1Click:Connect(function()
+                state = not state
+                TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = state and InterfaceConfig.AccentColor or Color3.fromRGB(35, 35, 45)}):Play()
+                TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)}):Play()
+                callback(state)
+            end)
+        end
+
+        addToggle(t("wm_show_ping"), WatermarkConfig.ShowPing, function(v) WatermarkConfig.ShowPing = v applyWatermarkSettings() end)
+        addToggle(t("wm_show_fps"), WatermarkConfig.ShowFPS, function(v) WatermarkConfig.ShowFPS = v applyWatermarkSettings() end)
+        addToggle(t("wm_show_role"), WatermarkConfig.ShowRole, function(v) WatermarkConfig.ShowRole = v applyWatermarkSettings() end)
+        addToggle(t("wm_show_player"), WatermarkConfig.ShowPlayer, function(v) WatermarkConfig.ShowPlayer = v applyWatermarkSettings() end)
+    end)
     cardReferences.TargetHUD = createModuleCard(tabs["HUD"], "Target HUD", t("desc_target_info"), false, function(v)
         TargetHUDConfig.Enabled = v
         if not v then targetHudFrame.Visible = false end
+    end, nil)
+    cardReferences.Time = createModuleCard(tabs["HUD"], "Time", t("desc_time"), false, function(v)
+        TimeConfig.Enabled = v
+        timeFrame.Visible = v
+    end, function()
+        for _, child in ipairs(settingsModal:GetChildren()) do
+            if not (child:IsA("UIListLayout") or child:IsA("UICorner") or child:IsA("UIStroke") or child:IsA("UIPadding")) then
+                child:Destroy()
+            end
+        end
+
+        local header = Instance.new("TextLabel", settingsModal)
+        header.Size = UDim2.new(1, 0, 0, 18)
+        header.BackgroundTransparency = 1
+        header.Text = t("hdr_time_settings")
+        header.TextColor3 = Color3.fromRGB(140, 140, 160)
+        header.TextSize = 12
+        header.FontFace = uiFont(Enum.FontWeight.Bold)
+        header.ZIndex = 101
+
+        local regionNames = {}
+        for _, r in ipairs(TIME_REGIONS) do table.insert(regionNames, r.name) end
+        createAnimatedDropdown(settingsModal, t("time_region"), regionNames, timeRegionName(TimeConfig.Offset), function(val)
+            for _, r in ipairs(TIME_REGIONS) do
+                if r.name == val then TimeConfig.Offset = r.offset end
+            end
+        end)
+
+        local function addToggle(name, current, callback)
+            local row = Instance.new("Frame", settingsModal)
+            row.Size = UDim2.new(1, 0, 0, 28)
+            row.BackgroundTransparency = 1
+            row.ZIndex = 101
+
+            local label = Instance.new("TextLabel", row)
+            label.Size = UDim2.new(1, -50, 1, 0)
+            label.BackgroundTransparency = 1
+            label.Text = name
+            label.TextColor3 = Color3.fromRGB(220, 220, 230)
+            label.TextSize = 13
+            label.FontFace = uiFont(Enum.FontWeight.SemiBold)
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.ZIndex = 101
+
+            local btn = Instance.new("TextButton", row)
+            btn.Size = UDim2.new(0, 38, 0, 20)
+            btn.Position = UDim2.new(1, -38, 0.5, -10)
+            btn.BackgroundColor3 = current and InterfaceConfig.AccentColor or Color3.fromRGB(35, 35, 45)
+            btn.Text = ""
+            btn.ZIndex = 101
+            Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+
+            local circle = Instance.new("Frame", btn)
+            circle.Size = UDim2.new(0, 14, 0, 14)
+            circle.Position = current and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+            circle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            circle.ZIndex = 102
+            Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+            local state = current
+            btn.MouseButton1Click:Connect(function()
+                state = not state
+                TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = state and InterfaceConfig.AccentColor or Color3.fromRGB(35, 35, 45)}):Play()
+                TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -17, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)}):Play()
+                callback(state)
+            end)
+        end
+
+        addToggle(t("time_seconds"), TimeConfig.ShowSeconds, function(v) TimeConfig.ShowSeconds = v end)
+        addToggle(t("time_date"), TimeConfig.ShowDate, function(v) TimeConfig.ShowDate = v end)
+    end)
+    cardReferences.FlameUsers = createModuleCard(tabs["HUD"], "Flame Users", t("desc_flame_users"), true, function(v)
+        FlameUsersConfig.Enabled = v
+        if not v then clearLeaderboardFlames() end
     end, nil)
 
     -- UTILITIES
@@ -2123,11 +2720,16 @@ local function startMainScript()
         end
     end, nil)
 
-    --------------------------------------------------------------------------------
     -- CONFIGS (пресеты всех настроек)
-    --------------------------------------------------------------------------------
     local configsTab = tabs["Configs"]
     if configsTab then
+        local function colorFromArr(a)
+            if not a or #a < 3 then return nil end
+            if a[1] > 1 or a[2] > 1 or a[3] > 1 then
+                return Color3.fromRGB(math.clamp(a[1], 0, 255), math.clamp(a[2], 0, 255), math.clamp(a[3], 0, 255))
+            end
+            return Color3.new(a[1], a[2], a[3])
+        end
         local function saveConfig(name)
             if name == nil or name == "" then return false end
             configStorage[name] = {
@@ -2143,13 +2745,27 @@ local function startMainScript()
                     Type = ParticleConfig.Type,
                     Color = { ParticleConfig.Color.R, ParticleConfig.Color.G, ParticleConfig.Color.B }
                 },
-                Watermark = cardReferences.Watermark.GetState(),
+                Watermark = {
+                    Enabled = cardReferences.Watermark.GetState(),
+                    ShowPlayer = WatermarkConfig.ShowPlayer,
+                    ShowPing = WatermarkConfig.ShowPing,
+                    ShowFPS = WatermarkConfig.ShowFPS,
+                    ShowRole = WatermarkConfig.ShowRole
+                },
                 TargetHUD = cardReferences.TargetHUD.GetState(),
+                Time = {
+                    Enabled = cardReferences.Time.GetState(),
+                    Offset = TimeConfig.Offset,
+                    ShowSeconds = TimeConfig.ShowSeconds,
+                    ShowDate = TimeConfig.ShowDate
+                },
+                FlameUsers = cardReferences.FlameUsers.GetState(),
                 Fullbright = cardReferences.Fullbright.GetState(),
                 NoFog = cardReferences.NoFog.GetState(),
                 HUD = {
                     Watermark = { watermarkFrame.Position.X.Scale, watermarkFrame.Position.X.Offset, watermarkFrame.Position.Y.Scale, watermarkFrame.Position.Y.Offset },
-                    TargetHUD = { targetHudFrame.Position.X.Scale, targetHudFrame.Position.X.Offset, targetHudFrame.Position.Y.Scale, targetHudFrame.Position.Y.Offset }
+                    TargetHUD = { targetHudFrame.Position.X.Scale, targetHudFrame.Position.X.Offset, targetHudFrame.Position.Y.Scale, targetHudFrame.Position.Y.Offset },
+                    Time = { timeFrame.Position.X.Scale, timeFrame.Position.X.Offset, timeFrame.Position.Y.Scale, timeFrame.Position.Y.Offset }
                 }
             }
             persistConfigs()
@@ -2160,11 +2776,13 @@ local function startMainScript()
             local data = configStorage[name]
             if not data then return false end
             if data.AccentColor then
-                updateInterfaceColor(Color3.fromRGB(data.AccentColor[1], data.AccentColor[2], data.AccentColor[3]))
+                local c = colorFromArr(data.AccentColor)
+                if c then updateInterfaceColor(c) end
             end
             if data.Nimb then
                 NimbConfig.Enabled = data.Nimb.Enabled
-                NimbConfig.Color = Color3.fromRGB(data.Nimb.Color[1], data.Nimb.Color[2], data.Nimb.Color[3])
+                local nc = colorFromArr(data.Nimb.Color)
+                if nc then NimbConfig.Color = nc end
                 NimbConfig.Size = data.Nimb.Size or "Средний"
                 NimbConfig.Height = data.Nimb.Height or 0.8
                 cardReferences.Nimb.SetState(NimbConfig.Enabled)
@@ -2173,14 +2791,33 @@ local function startMainScript()
             if data.Particles then
                 ParticleConfig.Enabled = data.Particles.Enabled
                 ParticleConfig.Type = data.Particles.Type or "All"
-                ParticleConfig.Color = Color3.fromRGB(data.Particles.Color[1], data.Particles.Color[2], data.Particles.Color[3])
+                local pc = colorFromArr(data.Particles.Color)
+                if pc then ParticleConfig.Color = pc end
                 cardReferences.WorldParticles.SetState(ParticleConfig.Enabled)
                 for _, entry in ipairs(activeParticles) do
                     if entry.label then entry.label.TextColor3 = ParticleConfig.Color end
                 end
             end
-            if data.Watermark ~= nil then cardReferences.Watermark.SetState(data.Watermark) end
+            if data.Watermark ~= nil then
+                if type(data.Watermark) == "table" then
+                    cardReferences.Watermark.SetState(data.Watermark.Enabled ~= false)
+                    WatermarkConfig.ShowPlayer = data.Watermark.ShowPlayer ~= false
+                    WatermarkConfig.ShowPing = data.Watermark.ShowPing ~= false
+                    WatermarkConfig.ShowFPS = data.Watermark.ShowFPS ~= false
+                    WatermarkConfig.ShowRole = data.Watermark.ShowRole ~= false
+                    applyWatermarkSettings()
+                else
+                    cardReferences.Watermark.SetState(data.Watermark)
+                end
+            end
             if data.TargetHUD ~= nil then cardReferences.TargetHUD.SetState(data.TargetHUD) end
+            if data.Time then
+                cardReferences.Time.SetState(data.Time.Enabled == true)
+                TimeConfig.Offset = tonumber(data.Time.Offset) or 3
+                TimeConfig.ShowSeconds = data.Time.ShowSeconds ~= false
+                TimeConfig.ShowDate = data.Time.ShowDate ~= false
+            end
+            if data.FlameUsers ~= nil then cardReferences.FlameUsers.SetState(data.FlameUsers) end
             if data.Fullbright ~= nil then cardReferences.Fullbright.SetState(data.Fullbright) end
             if data.NoFog ~= nil then cardReferences.NoFog.SetState(data.NoFog) end
             if data.HUD then
@@ -2191,6 +2828,10 @@ local function startMainScript()
                 if data.HUD.TargetHUD then
                     local p = data.HUD.TargetHUD
                     targetHudFrame.Position = UDim2.new(p[1], p[2], p[3], p[4])
+                end
+                if data.HUD.Time then
+                    local p = data.HUD.Time
+                    timeFrame.Position = UDim2.new(p[1], p[2], p[3], p[4])
                 end
             end
             return true
@@ -2215,7 +2856,7 @@ local function startMainScript()
         nameBox.Text = ""
         nameBox.TextColor3 = Color3.fromRGB(255, 255, 255)
         nameBox.TextSize = 14
-        nameBox.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+        nameBox.FontFace = uiFont(Enum.FontWeight.SemiBold)
         Instance.new("UICorner", nameBox).CornerRadius = UDim.new(0, 8)
         Instance.new("UIPadding", nameBox).PaddingLeft = UDim.new(0, 12)
 
@@ -2226,7 +2867,7 @@ local function startMainScript()
         createBtn.Text = t("cfg_create")
         createBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         createBtn.TextSize = 15
-        createBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+        createBtn.FontFace = uiFont(Enum.FontWeight.Bold)
         Instance.new("UICorner", createBtn).CornerRadius = UDim.new(0, 8)
 
         local listFrame = Instance.new("ScrollingFrame", configsTab)
@@ -2256,7 +2897,7 @@ local function startMainScript()
                 empty.Text = t("cfg_empty")
                 empty.TextColor3 = Color3.fromRGB(120, 120, 140)
                 empty.TextSize = 14
-                empty.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                empty.FontFace = uiFont(Enum.FontWeight.SemiBold)
             end
             for _, name in ipairs(configs) do
                 local row = Instance.new("Frame", listFrame)
@@ -2272,7 +2913,7 @@ local function startMainScript()
                 nameLabel.Text = name
                 nameLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
                 nameLabel.TextSize = 15
-                nameLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+                nameLabel.FontFace = uiFont(Enum.FontWeight.Bold)
                 nameLabel.TextXAlignment = Enum.TextXAlignment.Left
 
                 local btnLoad = Instance.new("TextButton", row)
@@ -2282,7 +2923,7 @@ local function startMainScript()
                 btnLoad.Text = t("cfg_load")
                 btnLoad.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btnLoad.TextSize = 12
-                btnLoad.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                btnLoad.FontFace = uiFont(Enum.FontWeight.SemiBold)
                 Instance.new("UICorner", btnLoad).CornerRadius = UDim.new(0, 6)
                 btnLoad.MouseButton1Click:Connect(function()
                     loadConfig(name)
@@ -2295,7 +2936,7 @@ local function startMainScript()
                 btnSave.Text = t("cfg_save")
                 btnSave.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btnSave.TextSize = 12
-                btnSave.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                btnSave.FontFace = uiFont(Enum.FontWeight.SemiBold)
                 Instance.new("UICorner", btnSave).CornerRadius = UDim.new(0, 6)
                 btnSave.MouseButton1Click:Connect(function()
                     saveConfig(name)
@@ -2308,7 +2949,7 @@ local function startMainScript()
                 btnDelete.Text = t("cfg_delete")
                 btnDelete.TextColor3 = Color3.fromRGB(255, 255, 255)
                 btnDelete.TextSize = 12
-                btnDelete.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.SemiBold)
+                btnDelete.FontFace = uiFont(Enum.FontWeight.SemiBold)
                 Instance.new("UICorner", btnDelete).CornerRadius = UDim.new(0, 6)
                 btnDelete.MouseButton1Click:Connect(function()
                     deleteConfig(name)
@@ -2331,9 +2972,7 @@ local function startMainScript()
         refreshConfigsList()
     end
 
-    --------------------------------------------------------------------------------
     -- PARTICLES + NIMB + TARGET HUD + HOTKEYS
-    --------------------------------------------------------------------------------
     local particleFolder = Instance.new("Folder", workspace)
     particleFolder.Name = "FlameParticles"
     local particleSymbols = { Stars = "★", Hearts = "♥", Dollars = "$" }
@@ -2346,6 +2985,10 @@ local function startMainScript()
     task.spawn(function()
         while true do
             task.wait(0.3)
+            if gen ~= uiShared.gen then
+                for _, e in ipairs(activeParticles) do pcall(function() e.part:Destroy() end) end
+                return
+            end
             if ParticleConfig.Enabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                 local root = LocalPlayer.Character.HumanoidRootPart
                 local ptype = pickParticleType()
@@ -2365,7 +3008,7 @@ local function startMainScript()
                 lab.Text = particleSymbols[ptype] or "★"
                 lab.TextColor3 = ParticleConfig.Color
                 lab.TextSize = (ptype == "Stars" and 22) or (ptype == "Dollars" and 24) or 20
-                lab.Font = Enum.Font.SourceSansBold
+                lab.FontFace = uiFont(Enum.FontWeight.Bold)
                 local entry = {part = part, label = lab, start = tick(), max = 2.6}
                 table.insert(activeParticles, entry)
             end
@@ -2473,7 +3116,9 @@ local function startMainScript()
                         end
                         local hp = math.max(0, hum.Health)
                         targetHpLabel.Text = string.format("HP / %.1f", hp)
-                        TweenService:Create(healthBarFill, TweenInfo.new(0.1), {Size = UDim2.new(math.clamp(hp / hum.MaxHealth, 0, 1), 0, 1, 0)}):Play()
+                        local hpFrac = math.clamp(hp / hum.MaxHealth, 0, 1)
+                        local hpColor = (hpFrac > 0.5 and Color3.fromRGB(90, 220, 120)) or (hpFrac > 0.25 and Color3.fromRGB(240, 200, 70)) or Color3.fromRGB(240, 70, 70)
+                        TweenService:Create(healthBarFill, TweenInfo.new(0.1), {Size = UDim2.new(hpFrac, 0, 1, 0), BackgroundColor3 = hpColor}):Play()
                         targetHudFrame.Visible = true
                         return
                     end
@@ -2495,7 +3140,7 @@ local function startMainScript()
     langBtn.Text = "🌐"
     langBtn.TextSize = 17
     langBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    langBtn.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold)
+    langBtn.FontFace = uiFont(Enum.FontWeight.Bold)
     Instance.new("UICorner", langBtn).CornerRadius = UDim.new(0, 9)
     langBtn.MouseButton1Click:Connect(function()
         createLanguageUI(function()
@@ -2529,13 +3174,20 @@ local function startMainScript()
     print("[FlameVisuals] Меню загружено полностью")
 end
 
---------------------------------------------------------------------------------
+local realStartMainScript = startMainScript
+startMainScript = function()
+    local ok, err = pcall(realStartMainScript)
+    if not ok then
+        warn("[FlameVisuals] ОШИБКА МЕНЮ: " .. tostring(err))
+        showError("[FlameVisuals] ОШИБКА МЕНЮ: " .. tostring(err))
+    end
+end
+
 -- START
---------------------------------------------------------------------------------
 print("[FlameVisuals] Запуск...")
 local okStart, errStart = pcall(function()
     local function goToKeyCheck()
-        pcall(function()
+        local okIn, errIn = pcall(function()
             if isKeyValidToday() then
                 print("[FlameVisuals] Ключ сохранён и действителен -> меню")
                 startMainScript()
@@ -2544,6 +3196,10 @@ local okStart, errStart = pcall(function()
                 createKeyUI(startMainScript)
             end
         end)
+        if not okIn then
+            warn("[FlameVisuals] ОШИБКА КЛЮЧА: " .. tostring(errIn))
+            showError("[FlameVisuals] ОШИБКА: " .. tostring(errIn))
+        end
     end
     local savedLang = getSavedLang()
     if savedLang then
@@ -2552,9 +3208,11 @@ local okStart, errStart = pcall(function()
         goToKeyCheck()
     else
         print("[FlameVisuals] Выбор языка...")
+        showDebug("LANG")
         createLanguageUI(goToKeyCheck)
     end
 end)
 if not okStart then
     warn("[FlameVisuals] ОШИБКА ЗАПУСКА: " .. tostring(errStart))
+    showError("[FlameVisuals] ОШИБКА ЗАПУСКА: " .. tostring(errStart))
 end
