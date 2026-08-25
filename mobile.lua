@@ -1232,6 +1232,8 @@ local function startMainScript()
         end
     end)
 
+    local enforcedTags = {}
+
     local function nameMatchesTag(clean, plr)
         if clean == plr.Name or clean == plr.DisplayName then return true end
         for _, nm in ipairs({ plr.Name, plr.DisplayName }) do
@@ -1250,10 +1252,24 @@ local function startMainScript()
                 if txt and #txt > 0 then
                     local clean = trimStr(txt)
                     if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
-                        if nameMatchesTag(clean, plr) then
+                        if nameMatchesTag(clean, plr) or clean:find(plr.Name, 1, true) or clean:find(plr.DisplayName, 1, true) then
                             label.Text = "🔥 " .. clean
+                            enforcedTags[label] = true
                         end
                     end
+                end
+            end
+        end
+    end
+
+    local function checkAdornedGui(obj)
+        local ok, ad = pcall(function() return obj.Adornee end)
+        if ok and ad then
+            local char = ad:FindFirstAncestorOfClass("Model")
+            if char then
+                local plr = Players:GetPlayerFromCharacter(char)
+                if plr and isFlameUser(plr) then
+                    scanLabelsForFlame(obj, plr)
                 end
             end
         end
@@ -1270,19 +1286,34 @@ local function startMainScript()
         end
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
-                local ad = obj.Adornee
-                if ad then
-                    local char = ad:FindFirstAncestorOfClass("Model")
-                    if char then
-                        local plr = Players:GetPlayerFromCharacter(char)
-                        if plr and isFlameUser(plr) then
-                            scanLabelsForFlame(obj, plr)
-                        end
-                    end
+                checkAdornedGui(obj)
+            end
+        end
+        local okPg, playerGui = pcall(function() return LocalPlayer:FindFirstChildOfClass("PlayerGui") end)
+        if okPg and playerGui then
+            for _, obj in ipairs(playerGui:GetDescendants()) do
+                if obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
+                    checkAdornedGui(obj)
                 end
             end
         end
     end
+
+    -- форсируем огонёк каждый кадр (если игра перезаписывает табличку)
+    RunService.RenderStepped:Connect(function()
+        if gen ~= uiShared.gen then return end
+        for label in pairs(enforcedTags) do
+            local ok, alive = pcall(function() return label.Parent ~= nil end)
+            if not ok or not alive then
+                enforcedTags[label] = nil
+            else
+                local ok2, txt = pcall(function() return label.Text end)
+                if ok2 and txt and #txt > 0 and string.sub(txt, 1, 4) ~= "🔥" then
+                    label.Text = "🔥 " .. trimStr(txt)
+                end
+            end
+        end
+    end)
 
     task.spawn(function()
         while gen == uiShared.gen do
