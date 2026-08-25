@@ -3295,7 +3295,7 @@ local okStart, errStart = pcall(function()
         end
     end
     local savedLang = getSavedLang()
-    if savedLang then
+    if savedLang thena
         LANG = savedLang
         print("[FlameVisuals] Язык из сохранения: " .. LANG)
         goToKeyCheck()
