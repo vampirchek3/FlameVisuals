@@ -49,6 +49,11 @@ local HttpService = game:GetService("HttpService")
 local Lighting = game:GetService("Lighting")
 local TeleportService = game:GetService("TeleportService")
 local Camera = workspace.CurrentCamera
+local function getCamera()
+    if Camera and Camera.Parent then return Camera end
+    Camera = workspace.CurrentCamera
+    return Camera
+end
 
 local API_BASE = "https://flamevisuals.yavampir60.workers.dev" -- API через Cloudflare Worker (обходит защиту)
 local SITE_URL = "https://flamevisuals.site.je" -- сайт для кнопки "Get Key"
@@ -69,9 +74,14 @@ local FONT_FAMILY = "rbxasset://fonts/families/GothamSSm.json"
 --  "rbxasset://fonts/families/Inconsolata.json"      -- Inconsolata: моноширинный "кодерский"
 --  "rbxasset://fonts/families/Nunito.json"           -- Nunito: мягкий, округлый
 local function uiFont(weight)
-    local ok, f = pcall(Font.new, FONT_FAMILY, weight or Enum.FontWeight.SemiBold)
+    local w = weight or Enum.FontWeight.SemiBold
+    local ok, f = pcall(Font.new, FONT_FAMILY, w)
     if ok and f then return f end
-    return Font.new("rbxasset://fonts/families/SourceSansPro.json", weight or Enum.FontWeight.SemiBold)
+    local ok2, f2 = pcall(Font.new, "rbxasset://fonts/families/SourceSansPro.json", w)
+    if ok2 and f2 then return f2 end
+    local ok3, f3 = pcall(Font.new, "rbxasset://fonts/families/Arial.json", w)
+    if ok3 and f3 then return f3 end
+    return Enum.Font.Gotham
 end
 -- ══════════════════════════════════════════════
 
@@ -1679,7 +1689,7 @@ if name ~= "Configs" then
 
     UserInputService.InputBegan:Connect(function(input)
         if gen ~= uiShared.gen then return end
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2) and settingsModal.Visible then
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch) and settingsModal.Visible then
             local mousePos = UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
             local mPos, mSize = settingsModal.AbsolutePosition, settingsModal.AbsoluteSize
             if mousePos.X < mPos.X or mousePos.X > mPos.X + mSize.X or mousePos.Y < mPos.Y or mousePos.Y > mPos.Y + mSize.Y then
@@ -2248,6 +2258,24 @@ if name ~= "Configs" then
                 openSettingsModal(mousePos.X + 5, mousePos.Y - 10)
             end
         end)
+        if onRightClick then
+            local settingsBtn = Instance.new("TextButton", card)
+            settingsBtn.Size = UDim2.new(0, 18, 0, 18)
+            settingsBtn.Position = UDim2.new(1, -68, 0, 10)
+            settingsBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+            settingsBtn.Text = "..."
+            settingsBtn.TextColor3 = Color3.fromRGB(200, 200, 210)
+            settingsBtn.TextSize = 11
+            settingsBtn.FontFace = uiFont(Enum.FontWeight.Bold)
+            settingsBtn.ZIndex = 10
+            settingsBtn.AutoButtonColor = false
+            Instance.new("UICorner", settingsBtn).CornerRadius = UDim.new(0, 4)
+            settingsBtn.MouseButton1Click:Connect(function()
+                local mousePos = UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
+                onRightClick()
+                openSettingsModal(mousePos.X + 5, mousePos.Y - 10)
+            end)
+        end
 
         return { SetState = setVisualState, GetState = function() return state end }
     end
@@ -2372,7 +2400,9 @@ if name ~= "Configs" then
 
                 local btnAbsPos = mainBtn.AbsolutePosition
                 local btnAbsSize = mainBtn.AbsoluteSize
-                local screenSize = Camera.ViewportSize
+                local cam = getCamera()
+                if not cam then dropFrame.Visible = false return end
+                local screenSize = cam.ViewportSize
                 local listHeight = #options * 30
                 local listWidth = btnAbsSize.X + 12
 
@@ -2397,7 +2427,7 @@ if name ~= "Configs" then
                 dropFrame.Position = UDim2.new(0, x, 0, y)
                 dropFrame.Size = UDim2.new(0, listWidth, 0, listHeight)
 
-                arrow.Text = openUp and "▲" or "▲"
+                arrow.Text = openUp and "▲" or "▼"
 
                 dropFrame.Size = UDim2.new(0, listWidth, 0, 0)
                 TweenService:Create(dropFrame, TweenInfo.new(0.20, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -3163,8 +3193,13 @@ if name ~= "Configs" then
             currentTarget = nil
             return
         end
-        local mousePos = UserInputService:GetMouseLocation()
-        local ray = Camera:ViewportPointToRay(mousePos.X, mousePos.Y)
+        local cam = getCamera()
+        if not cam then return end
+        local ok, ray = pcall(function()
+            local mousePos = UserInputService:GetMouseLocation()
+            return cam:ViewportPointToRay(mousePos.X, mousePos.Y)
+        end)
+        if not ok then return end
         local params = RaycastParams.new()
         params.FilterType = Enum.RaycastFilterType.Exclude
         params.FilterDescendantsInstances = {LocalPlayer.Character, screenGui}
@@ -3295,7 +3330,7 @@ local okStart, errStart = pcall(function()
         end
     end
     local savedLang = getSavedLang()
-    if savedLang thena
+    if savedLang then
         LANG = savedLang
         print("[FlameVisuals] Язык из сохранения: " .. LANG)
         goToKeyCheck()
