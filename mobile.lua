@@ -1242,30 +1242,51 @@ local function startMainScript()
         end
     end)
 
-    local enforcedTags = {}
+    local taggedLabels = {}
 
     local function nameMatchesTag(clean, plr)
         if clean == plr.Name or clean == plr.DisplayName then return true end
         for _, nm in ipairs({ plr.Name, plr.DisplayName }) do
-            if #nm > 0 and #clean > #nm and string.sub(clean, 1, #nm) == nm then
-                local nxt = string.sub(clean, #nm + 1, #nm + 1)
-                if not string.match(nxt, "[%w_]") then return true end
+            if clean == "🔥 " .. nm then return true end
+            if #nm > 0 and #clean > #nm + 2 and string.sub(clean, 1, #nm) == nm then
+                local rest = string.sub(clean, #nm + 1, #nm + 1)
+                if rest == " " or rest == "\n" or rest == "(" then return true end
+            end
+        end
+        if clean:find("@", 1, true) then
+            local namePart = clean:match("^(.-)%s*%(")
+            if namePart then
+                namePart = trimStr(namePart)
+                for _, nm in ipairs({ plr.Name, plr.DisplayName }) do
+                    if namePart == nm or namePart == "🔥 " .. nm then return true end
+                end
             end
         end
         return false
     end
 
+    local function isOverheadLabel(label)
+        local ok, txt = pcall(function() return label.Text end)
+        if not ok or not txt or #txt == 0 then return false end
+        if #txt > 80 then return false end
+        local clean = trimStr(txt)
+        if #clean == 0 then return false end
+        local ok2, sz = pcall(function() return label.TextSize end)
+        if ok2 and sz and (sz < 8 or sz > 40) then return false end
+        local ok3, ra = pcall(function() return label.RichText end)
+        if ok3 and ra then return false end
+        return true
+    end
+
     local function scanLabelsForFlame(root, plr)
         for _, label in ipairs(root:GetDescendants()) do
-            if label:IsA("TextLabel") then
+            if label:IsA("TextLabel") and isOverheadLabel(label) then
                 local txt = label.Text
-                if txt and #txt > 0 then
-                    local clean = trimStr(txt)
-                    if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
-                        if nameMatchesTag(clean, plr) or clean:find(plr.Name, 1, true) or clean:find(plr.DisplayName, 1, true) then
-                            label.Text = "🔥 " .. clean
-                            enforcedTags[label] = true
-                        end
+                local clean = trimStr(txt)
+                if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
+                    if nameMatchesTag(clean, plr) then
+                        label.Text = "🔥 " .. clean
+                        taggedLabels[label] = true
                     end
                 end
             end
@@ -1309,19 +1330,47 @@ local function startMainScript()
         end
     end
 
-    -- форсируем огонёк каждый кадр (если игра перезаписывает табличку)
     RunService.RenderStepped:Connect(function()
         if gen ~= uiShared.gen then return end
-        for label in pairs(enforcedTags) do
+        for label in pairs(taggedLabels) do
             local ok, alive = pcall(function() return label.Parent ~= nil end)
             if not ok or not alive then
-                enforcedTags[label] = nil
+                taggedLabels[label] = nil
             else
                 local ok2, txt = pcall(function() return label.Text end)
-                if ok2 and txt and #txt > 0 and string.sub(txt, 1, 4) ~= "🔥" then
-                    label.Text = "🔥 " .. trimStr(txt)
+                if ok2 and txt and #txt > 0 then
+                    if string.sub(txt, 1, 4) ~= "🔥" then
+                        local clean = trimStr(txt)
+                        if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
+                            pcall(function() label.Text = "🔥 " .. clean end)
+                        end
+                    end
                 end
             end
+        end
+    end)
+
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer and isFlameUser(plr) then
+            plr.CharacterAdded:Connect(function(char)
+                task.wait(1)
+                pcall(scanLabelsForFlame, char, plr)
+            end)
+            if plr.Character then
+                task.spawn(function()
+                    task.wait(1)
+                    pcall(scanLabelsForFlame, plr.Character, plr)
+                end)
+            end
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(plr)
+        if plr ~= LocalPlayer and isFlameUser(plr) then
+            plr.CharacterAdded:Connect(function(char)
+                task.wait(1)
+                pcall(scanLabelsForFlame, char, plr)
+            end)
         end
     end)
 
