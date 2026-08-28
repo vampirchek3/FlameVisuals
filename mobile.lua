@@ -1242,7 +1242,7 @@ local function startMainScript()
         end
     end)
 
-    local taggedLabels = {}
+    local flameOverlays = {}
 
     local function nameMatchesTag(clean, plr)
         if clean == plr.Name or clean == plr.DisplayName then return true end
@@ -1278,15 +1278,43 @@ local function startMainScript()
         return true
     end
 
+    local function createFlameOverlay(originalLabel, plr)
+        if flameOverlays[originalLabel] then return end
+        local parent = originalLabel.Parent
+        if not parent then return end
+
+        local ok, clone = pcall(function()
+            local c = originalLabel:Clone()
+            c.Name = "FV_FlameTag"
+            c.Text = "🔥 " .. originalLabel.Text
+            c.TextColor3 = Color3.fromRGB(255, 200, 50)
+            c.TextStrokeTransparency = 0.5
+            c.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+            c.BackgroundTransparency = 1
+            c.Parent = parent
+            return c
+        end)
+        if not ok or not clone then return end
+
+        flameOverlays[originalLabel] = {
+            overlay = clone,
+            original = originalLabel,
+            player = plr,
+        }
+        pcall(function()
+            originalLabel.TextTransparency = 1
+            originalLabel.TextStrokeTransparency = 1
+        end)
+    end
+
     local function scanLabelsForFlame(root, plr)
         for _, label in ipairs(root:GetDescendants()) do
-            if label:IsA("TextLabel") and isOverheadLabel(label) then
+            if label:IsA("TextLabel") and isOverheadLabel(label) and label.Name ~= "FV_FlameTag" then
                 local txt = label.Text
                 local clean = trimStr(txt)
                 if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
                     if nameMatchesTag(clean, plr) then
-                        label.Text = "🔥 " .. clean
-                        taggedLabels[label] = true
+                        createFlameOverlay(label, plr)
                     end
                 end
             end
@@ -1332,17 +1360,24 @@ local function startMainScript()
 
     RunService.RenderStepped:Connect(function()
         if gen ~= uiShared.gen then return end
-        for label in pairs(taggedLabels) do
-            local ok, alive = pcall(function() return label.Parent ~= nil end)
-            if not ok or not alive then
-                taggedLabels[label] = nil
+        for origLabel, data in pairs(flameOverlays) do
+            local ok, alive = pcall(function() return origLabel.Parent ~= nil end)
+            if not ok or not alive or not data.overlay or not data.overlay.Parent then
+                pcall(function() if data.overlay then data.overlay:Destroy() end end)
+                pcall(function()
+                    origLabel.TextTransparency = 0
+                    origLabel.TextStrokeTransparency = 0
+                end)
+                flameOverlays[origLabel] = nil
             else
-                local ok2, txt = pcall(function() return label.Text end)
+                local ok2, txt = pcall(function() return origLabel.Text end)
                 if ok2 and txt and #txt > 0 then
-                    if string.sub(txt, 1, 4) ~= "🔥" then
-                        local clean = trimStr(txt)
-                        if #clean > 0 and string.sub(clean, 1, 4) ~= "🔥" then
-                            pcall(function() label.Text = "🔥 " .. clean end)
+                    local clean = trimStr(txt)
+                    if #clean > 0 then
+                        if string.sub(clean, 1, 4) ~= "🔥" then
+                            pcall(function() data.overlay.Text = "🔥 " .. clean end)
+                        else
+                            pcall(function() data.overlay.Text = clean end)
                         end
                     end
                 end
@@ -2307,7 +2342,7 @@ if name ~= "Configs" then
                 openSettingsModal(mousePos.X + 5, mousePos.Y - 10)
             end
         end)
-        if onRightClick then
+        if onRightClick and UserInputService.TouchEnabled then
             local settingsBtn = Instance.new("TextButton", card)
             settingsBtn.Size = UDim2.new(0, 18, 0, 18)
             settingsBtn.Position = UDim2.new(1, -68, 0, 10)
